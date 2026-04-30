@@ -36,6 +36,24 @@ router.get('/', (req, res) => {
   res.json(agents);
 });
 
+// Get agent types (must be before /:id routes)
+router.get('/types', (req, res) => {
+  const types = [
+    { value: 'trend', label: '一键追爆', description: '自动追踪全网热点并生成选题' },
+    { value: 'create', label: 'AI创作', description: 'AI文案/图片/脚本创作' },
+    { value: 'avatar', label: '数字人', description: 'AI数字人播报视频生成' },
+    { value: 'video', label: '大片自动生成', description: '文案自动转视频' },
+    { value: 'prospect', label: 'AI拓客', description: '自动寻找并触达潜在客户' },
+    { value: 'map-prospect', label: '地图拓客', description: '基于地图POI发现周边客户' },
+    { value: 'wechat', label: 'AI个企微', description: '自动管理微信/企微' },
+    { value: 'hr', label: 'AI人事', description: 'AI处理日常人事事务' },
+    { value: 'legal', label: 'AI法务', description: 'AI辅助法律事务处理' },
+    { value: 'call', label: 'AI电销', description: 'AI自动外呼销售' },
+    { value: 'live', label: 'AI直播', description: 'AI自动直播带货' },
+  ];
+  res.json(types);
+});
+
 // Get single agent
 router.get('/:id', (req, res) => {
   const agent = db.prepare('SELECT * FROM agents WHERE id = ?').get(req.params.id) as any;
@@ -93,24 +111,6 @@ router.get('/:id/tasks', (req, res) => {
     SELECT * FROM tasks WHERE agent_id = ? ORDER BY created_at DESC LIMIT 50
   `).all(req.params.id);
   res.json(tasks);
-});
-
-// Get agent types
-router.get('/types', (req, res) => {
-  const types = [
-    { value: 'trend', label: '一键追爆', description: '自动追踪全网热点并生成选题' },
-    { value: 'create', label: 'AI创作', description: 'AI文案/图片/脚本创作' },
-    { value: 'avatar', label: '数字人', description: 'AI数字人播报视频生成' },
-    { value: 'video', label: '大片自动生成', description: '文案自动转视频' },
-    { value: 'prospect', label: 'AI拓客', description: '自动寻找并触达潜在客户' },
-    { value: 'map-prospect', label: '地图拓客', description: '基于地图POI发现周边客户' },
-    { value: 'wechat', label: 'AI个企微', description: '自动管理微信/企微' },
-    { value: 'hr', label: 'AI人事', description: 'AI处理日常人事事务' },
-    { value: 'legal', label: 'AI法务', description: 'AI辅助法律事务处理' },
-    { value: 'call', label: 'AI电销', description: 'AI自动外呼销售' },
-    { value: 'live', label: 'AI直播', description: 'AI自动直播带货' },
-  ];
-  res.json(types);
 });
 
 function initAgent(id: string): void {

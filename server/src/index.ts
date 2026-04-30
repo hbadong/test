@@ -3,7 +3,7 @@ import cors from 'cors';
 import path from 'path';
 import fs from 'fs';
 import { logger } from './utils/logger';
-import agentRoutes from './routes/agents';
+import agentRoutes, { initAllAgents } from './routes/agents';
 import workflowRoutes from './routes/workflows';
 import contentRoutes from './routes/content';
 import leadRoutes from './routes/leads';
@@ -59,6 +59,7 @@ app.use((err: Error, req: express.Request, res: express.Response, next: express.
 // Start server
 app.listen(PORT, () => {
   logger.info(`AI Employee System server started on port ${PORT}`);
+  initAllAgents();
   scheduler.start();
 });
 

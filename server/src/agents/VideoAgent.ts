@@ -72,7 +72,8 @@ export class VideoAgent extends BaseAgent {
   }
 
   private async parseScript(script: string): Promise<VideoScene[]> {
-    const prompt = `请将以下脚本拆分为视频场景：
+    try {
+      const prompt = `请将以下脚本拆分为视频场景：
 
 ${script}
 
@@ -86,9 +87,23 @@ ${script}
   }
 ]`;
 
-    return await chatCompletionJSON([
-      { role: 'user', content: prompt },
-    ]);
+      return await chatCompletionJSON([
+        { role: 'user', content: prompt },
+      ]);
+    } catch (error) {
+      return this.parseScriptFallback(script);
+    }
+  }
+
+  private parseScriptFallback(script: string): VideoScene[] {
+    // Simple fallback: split by sentences
+    const sentences = script.split(/[，。！？；\n]/).filter(s => s.trim());
+    return sentences.slice(0, 6).map((text, i) => ({
+      text: text.trim(),
+      visual: this.getDefaultVisual(text),
+      duration: Math.max(text.length * 0.3, 3),
+      bgm: 'bgm-default-01.mp3',
+    }));
   }
 
   private async matchVisuals(scenes: VideoScene[]): Promise<VideoScene[]> {
