@@ -1,8 +1,9 @@
 <template>
   <div class="dashboard">
+    <!-- Stats Cards -->
     <el-row :gutter="20" class="stats-row">
       <el-col :xs="12" :sm="12" :md="6">
-        <div class="stat-card stat-card--blue">
+        <div class="stat-card stat-card--blue" @click="$router.push('/agents')">
           <div class="stat-card__icon">
             <el-icon size="28"><Avatar /></el-icon>
           </div>
@@ -10,11 +11,15 @@
             <div class="stat-card__value">{{ stats.agentCount || 11 }}</div>
             <div class="stat-card__label">AI员工</div>
           </div>
+          <div class="stat-card__trend" :class="stats.agentCount > 0 ? 'up' : ''">
+            <el-icon v-if="stats.agentCount > 0"><Top /></el-icon>
+            <span>运行中</span>
+          </div>
           <div class="stat-card__bg"></div>
         </div>
       </el-col>
       <el-col :xs="12" :sm="12" :md="6">
-        <div class="stat-card stat-card--green">
+        <div class="stat-card stat-card--green" @click="$router.push('/contents')">
           <div class="stat-card__icon">
             <el-icon size="28"><Document /></el-icon>
           </div>
@@ -22,17 +27,27 @@
             <div class="stat-card__value">{{ stats.contentCount || 0 }}</div>
             <div class="stat-card__label">内容产出</div>
           </div>
+          <div class="stat-card__trend" :class="contentTrend > 0 ? 'up' : contentTrend < 0 ? 'down' : ''">
+            <el-icon v-if="contentTrend > 0"><Top /></el-icon>
+            <el-icon v-else-if="contentTrend < 0"><Bottom /></el-icon>
+            <span>{{ contentTrend > 0 ? '+' : '' }}{{ contentTrend }}%</span>
+          </div>
           <div class="stat-card__bg"></div>
         </div>
       </el-col>
       <el-col :xs="12" :sm="12" :md="6">
-        <div class="stat-card stat-card--orange">
+        <div class="stat-card stat-card--orange" @click="$router.push('/leads')">
           <div class="stat-card__icon">
             <el-icon size="28"><UserFilled /></el-icon>
           </div>
           <div class="stat-card__content">
             <div class="stat-card__value">{{ stats.leadCount || 0 }}</div>
             <div class="stat-card__label">新增线索</div>
+          </div>
+          <div class="stat-card__trend" :class="leadTrend > 0 ? 'up' : leadTrend < 0 ? 'down' : ''">
+            <el-icon v-if="leadTrend > 0"><Top /></el-icon>
+            <el-icon v-else-if="leadTrend < 0"><Bottom /></el-icon>
+            <span>{{ leadTrend > 0 ? '+' : '' }}{{ leadTrend }}%</span>
           </div>
           <div class="stat-card__bg"></div>
         </div>
@@ -46,11 +61,15 @@
             <div class="stat-card__value">{{ stats.taskCount || 0 }}</div>
             <div class="stat-card__label">任务执行</div>
           </div>
+          <div class="stat-card__trend">
+            <span>成功率 {{ taskSuccessRate }}%</span>
+          </div>
           <div class="stat-card__bg"></div>
         </div>
       </el-col>
     </el-row>
 
+    <!-- Charts Row -->
     <el-row :gutter="20" class="chart-row">
       <el-col :xs="24" :md="16">
         <el-card class="dashboard-card">
@@ -60,13 +79,13 @@
                 <el-icon :size="18" color="#409eff"><TrendCharts /></el-icon>
                 <span>30天趋势</span>
               </div>
-              <el-radio-group v-model="trendPeriod" size="small">
+              <el-radio-group v-model="trendPeriod" size="small" @change="onPeriodChange">
                 <el-radio-button label="7">7天</el-radio-button>
                 <el-radio-button label="30">30天</el-radio-button>
               </el-radio-group>
             </div>
           </template>
-          <div ref="trendChartRef" class="chart-container"></div>
+          <div ref="trendChartRef" class="chart-container chart-container--trend"></div>
         </el-card>
       </el-col>
       <el-col :xs="24" :md="8">
@@ -74,32 +93,85 @@
           <template #header>
             <div class="card-header">
               <div class="card-header__left">
-                <el-icon :size="18" color="#67c23a"><Monitor /></el-icon>
-                <span>AI员工状态</span>
+                <el-icon :size="18" color="#67c23a"><PieChart /></el-icon>
+                <span>任务成功率</span>
               </div>
             </div>
           </template>
-          <div class="agent-status-list">
-            <div v-for="agent in agentStatusList" :key="agent.id" class="agent-status-item">
-              <div class="agent-status-item__info">
-                <span class="agent-status-item__name">{{ agent.name }}</span>
-                <span class="agent-status-item__type">{{ agent.type }}</span>
-              </div>
-              <el-tag 
-                :type="agent.status === 'active' ? 'success' : agent.status === 'paused' ? 'warning' : 'info'" 
-                size="small"
-                effect="light"
-                round
-              >
-                {{ agent.status === 'active' ? '运行中' : agent.status === 'paused' ? '暂停' : '已停止' }}
-              </el-tag>
+          <div ref="successChartRef" class="chart-container chart-container--success"></div>
+          <div class="success-legend">
+            <div class="success-legend__item">
+              <span class="success-legend__dot success-legend__dot--success"></span>
+              <span>成功 {{ successData.success }} ({{ successRate }}%)</span>
             </div>
-            <el-empty v-if="!agentStatusList.length" description="暂无数据" :image-size="60" />
+            <div class="success-legend__item">
+              <span class="success-legend__dot success-legend__dot--fail"></span>
+              <span>失败 {{ successData.fail }}</span>
+            </div>
           </div>
         </el-card>
       </el-col>
     </el-row>
 
+    <!-- Agent Status + Source Distribution -->
+    <el-row :gutter="20" class="chart-row">
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card">
+          <template #header>
+            <div class="card-header">
+              <div class="card-header__left">
+                <el-icon :size="18" color="#67c23a"><Monitor /></el-icon>
+                <span>AI员工状态</span>
+              </div>
+              <el-button link type="primary" @click="$router.push('/agents')">管理</el-button>
+            </div>
+          </template>
+          <div class="agent-status-list">
+            <div 
+              v-for="agent in agentStatusList" 
+              :key="agent.id" 
+              class="agent-status-item"
+              @click="goAgentDetail(agent)"
+            >
+              <div class="agent-status-item__left">
+                <div class="agent-status-item__pulse" :class="{ 'agent-status-item__pulse--active': agent.status === 'active' }"></div>
+                <div class="agent-status-item__info">
+                  <span class="agent-status-item__name">{{ agent.name }}</span>
+                  <span class="agent-status-item__type">{{ getTypeLabel(agent.type) }}</span>
+                </div>
+              </div>
+              <div class="agent-status-item__right">
+                <span class="agent-status-item__runs">{{ agent.total_runs || 0 }} 次</span>
+                <el-tag 
+                  :type="agent.status === 'active' ? 'success' : agent.status === 'paused' ? 'warning' : 'info'" 
+                  size="small"
+                  effect="light"
+                  round
+                >
+                  {{ agent.status === 'active' ? '运行中' : agent.status === 'paused' ? '暂停' : '已停止' }}
+                </el-tag>
+              </div>
+            </div>
+            <el-empty v-if="!agentStatusList.length" description="暂无数据" :image-size="60" />
+          </div>
+        </el-card>
+      </el-col>
+      <el-col :xs="24" :md="12">
+        <el-card class="dashboard-card">
+          <template #header>
+            <div class="card-header">
+              <div class="card-header__left">
+                <el-icon :size="18" color="#e6a23c"><Histogram /></el-icon>
+                <span>内容来源分布</span>
+              </div>
+            </div>
+          </template>
+          <div ref="sourceChartRef" class="chart-container chart-container--source"></div>
+        </el-card>
+      </el-col>
+    </el-row>
+
+    <!-- Recent Tasks + Leads -->
     <el-row :gutter="20" class="recent-row">
       <el-col :xs="24" :md="12">
         <el-card class="dashboard-card">
@@ -122,7 +194,7 @@
             >
               <div class="timeline-content">
                 <div class="timeline-content__header">
-                  <span class="timeline-content__agent">{{ task.agent_name || task.agent_id }}</span>
+                  <span class="timeline-content__agent">{{ task.agent_name || getAgentName(task.agent_id) }}</span>
                   <el-tag 
                     :type="task.status === 'success' ? 'success' : task.status === 'failed' ? 'danger' : 'warning'" 
                     size="small"
@@ -132,6 +204,7 @@
                     {{ task.status === 'success' ? '完成' : task.status === 'failed' ? '失败' : '运行中' }}
                   </el-tag>
                 </div>
+                <div v-if="task.error_message" class="timeline-content__error">{{ task.error_message }}</div>
               </div>
             </el-timeline-item>
             <el-empty v-if="!recentTasks.length" description="暂无任务记录" :image-size="60" />
@@ -153,13 +226,13 @@
             <el-table-column>
               <template #default="{ row }">
                 <div class="lead-item">
-                  <div class="lead-item__avatar">{{ row.name?.charAt(0) || '?' }}</div>
+                  <div class="lead-item__avatar" :style="{ background: getSourceColor(row.source) }">{{ row.name?.charAt(0) || '?' }}</div>
                   <div class="lead-item__info">
                     <div class="lead-item__name">{{ row.name || '未命名' }}</div>
                     <div class="lead-item__company">{{ row.company || '-' }}</div>
                   </div>
                   <div class="lead-item__meta">
-                    <el-tag size="small" effect="plain">{{ row.source || '-' }}</el-tag>
+                    <el-tag size="small" effect="plain">{{ getSourceLabel(row.source) }}</el-tag>
                   </div>
                 </div>
               </template>
@@ -173,26 +246,92 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch } from 'vue'
-import { Avatar, Document, UserFilled, Connection, TrendCharts, Monitor, Clock } from '@element-plus/icons-vue'
+import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
+import { Avatar, Document, UserFilled, Connection, TrendCharts, Monitor, Clock, PieChart, Histogram, Top, Bottom } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import api from '../api'
 
+const router = useRouter()
 const stats = ref<Record<string, number>>({})
 const agentStatusList = ref<any[]>([])
 const recentTasks = ref<any[]>([])
 const recentLeads = ref<any[]>([])
 const trendChartRef = ref<HTMLElement>()
+const successChartRef = ref<HTMLElement>()
+const sourceChartRef = ref<HTMLElement>()
 const trendPeriod = ref('30')
+const contentTrend = ref(0)
+const leadTrend = ref(0)
+
+const successData = ref({ success: 0, fail: 0 })
+const sourceData = ref<any[]>([])
+
+let trendInstance: echarts.ECharts | null = null
+let successInstance: echarts.ECharts | null = null
+let sourceInstance: echarts.ECharts | null = null
+
+const agentTypeMap: Record<string, string> = {
+  trend: '一键追爆', create: 'AI创作', avatar: '数字人', video: '大片自动生成',
+  prospect: 'AI拓客', 'map-prospect': '地图拓客', wechat: 'AI个企微',
+  hr: 'AI人事', legal: 'AI法务', call: 'AI电销', live: 'AI直播',
+}
+
+function getTypeLabel(type: string): string {
+  return agentTypeMap[type] || type
+}
+
+function getAgentName(id: string): string {
+  const agent = agentStatusList.value.find(a => a.id === id)
+  return agent ? agent.name : id
+}
+
+const sourceColorMap: Record<string, string> = {
+  trend: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+  create: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)',
+  avatar: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)',
+  video: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)',
+  prospect: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)',
+  'map-prospect': 'linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%)',
+  wechat: 'linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%)',
+  default: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+}
+
+function getSourceColor(source: string): string {
+  const colors: Record<string, string> = {
+    prospect: '#fa709a', 'map-prospect': '#a18cd1', import: '#667eea', test: '#43e97b',
+  }
+  return colors[source] || '#667eea'
+}
+
+function getSourceLabel(source: string): string {
+  const labels: Record<string, string> = {
+    prospect: 'AI拓客', 'map-prospect': '地图拓客', import: '导入', test: '测试',
+  }
+  return labels[source] || source
+}
+
+const taskSuccessRate = ref(0)
+const successRate = ref(0)
 
 onMounted(async () => {
   await fetchDashboard()
-  initTrendChart()
+  initCharts()
+  window.addEventListener('resize', handleResize)
 })
 
-watch(trendPeriod, () => {
-  fetchDashboard()
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', handleResize)
+  trendInstance?.dispose()
+  successInstance?.dispose()
+  sourceInstance?.dispose()
 })
+
+function handleResize() {
+  trendInstance?.resize()
+  successInstance?.resize()
+  sourceInstance?.resize()
+}
 
 async function fetchDashboard() {
   try {
@@ -208,8 +347,30 @@ async function fetchDashboard() {
     const agentsRes = await api.get('/agents')
     agentStatusList.value = agentsRes.data
 
+    // Calculate task success rate
+    const totalRuns = agentsRes.data.reduce((s: number, a: any) => s + (a.total_runs || 0), 0)
+    const totalSuccess = agentsRes.data.reduce((s: number, a: any) => s + (a.success_count || 0), 0)
+    const totalFail = agentsRes.data.reduce((s: number, a: any) => s + (a.fail_count || 0), 0)
+    taskSuccessRate.value = totalRuns > 0 ? Math.round((totalSuccess / totalRuns) * 100) : 0
+    successData.value = { success: totalSuccess, fail: totalFail }
+    successRate.value = (totalSuccess + totalFail) > 0 ? Math.round((totalSuccess / (totalSuccess + totalFail)) * 100) : 0
+
+    // Calculate trends
+    if (overviewData.contents?.length >= 2) {
+      const contents = overviewData.contents
+      const prev = contents[contents.length - 2]?.count || 0
+      const curr = contents[contents.length - 1]?.count || 0
+      contentTrend.value = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : 0
+    }
+    if (overviewData.leads?.length >= 2) {
+      const leads = overviewData.leads
+      const prev = leads[leads.length - 2]?.count || 0
+      const curr = leads[leads.length - 1]?.count || 0
+      leadTrend.value = prev > 0 ? Math.round(((curr - prev) / prev) * 100) : 0
+    }
+
     const tasksRes = await api.get('/dashboard/tasks/recent')
-    recentTasks.value = (tasksRes.data || []).slice(0, 5)
+    recentTasks.value = (tasksRes.data || []).slice(0, 8)
 
     const leadsRes = await api.get('/dashboard/leads/summary')
     recentLeads.value = (leadsRes.data?.recent || []).slice(0, 5)
@@ -218,9 +379,15 @@ async function fetchDashboard() {
     const dailyStats = dailyRes.data as any[]
     const days = trendPeriod.value === '7' ? dailyStats.slice(-7) : dailyStats
     updateTrendChart(days)
+    updateSuccessChart()
+    updateSourceChart(agentsRes.data)
   } catch (e) {
     console.error('Failed to fetch dashboard data:', e)
   }
+}
+
+function onPeriodChange() {
+  fetchDashboard()
 }
 
 function formatTime(dateStr: string): string {
@@ -235,26 +402,55 @@ function formatTime(dateStr: string): string {
   return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-let chartInstance: echarts.ECharts | null = null
+function goAgentDetail(agent: any) {
+  router.push({ path: '/agents', query: { id: agent.id } })
+}
 
-function initTrendChart() {
-  if (!trendChartRef.value) return
-  chartInstance = echarts.init(trendChartRef.value)
+// Charts
+function initCharts() {
+  if (trendChartRef.value) {
+    trendInstance = echarts.init(trendChartRef.value)
+    trendInstance.setOption(getTrendOption())
+  }
+  if (successChartRef.value) {
+    successInstance = echarts.init(successChartRef.value)
+    successInstance.setOption(getSuccessOption())
+  }
+  if (sourceChartRef.value) {
+    sourceInstance = echarts.init(sourceChartRef.value)
+    sourceInstance.setOption(getSourceOption([]))
+  }
+}
 
-  chartInstance.setOption({
+function getTrendOption() {
+  return {
     tooltip: { 
       trigger: 'axis',
-      backgroundColor: 'rgba(255,255,255,0.95)',
+      backgroundColor: 'rgba(255,255,255,0.96)',
       borderColor: '#ebeef5',
-      textStyle: { color: '#303133' },
+      borderWidth: 1,
+      textStyle: { color: '#303133', fontSize: 12 },
+      axisPointer: { type: 'cross', crossStyle: { color: '#999' }, lineStyle: { color: '#409eff', type: 'dashed' } },
+      formatter: (params: any[]) => {
+        let html = `<div style="font-weight:600;margin-bottom:6px">${params[0]?.axisValue}</div>`
+        params.forEach(p => {
+          html += `<div style="display:flex;align-items:center;gap:6px;margin:4px 0">
+            <span style="width:8px;height:8px;border-radius:50%;background:${p.color}"></span>
+            <span>${p.seriesName}: <b>${p.value}</b></span>
+          </div>`
+        })
+        return html
+      }
     },
     legend: { 
       data: ['任务', '内容', '线索'],
       bottom: 0,
-      itemWidth: 12,
-      itemHeight: 3,
+      itemWidth: 14,
+      itemHeight: 8,
+      itemGap: 20,
+      textStyle: { fontSize: 12, color: '#606266' },
     },
-    grid: { left: '3%', right: '4%', bottom: '10%', top: '8%', containLabel: true },
+    grid: { left: '3%', right: '4%', bottom: '12%', top: '8%', containLabel: true },
     xAxis: { 
       type: 'category', 
       data: [],
@@ -268,26 +464,89 @@ function initTrendChart() {
       axisLabel: { color: '#909399', fontSize: 11 },
     },
     series: [
-      { name: '任务', type: 'line', data: [], smooth: true, showSymbol: false, lineStyle: { width: 2 }, itemStyle: { color: '#409eff' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(64,158,255,0.2)' }, { offset: 1, color: 'rgba(64,158,255,0.02)' }] } } },
-      { name: '内容', type: 'line', data: [], smooth: true, showSymbol: false, lineStyle: { width: 2 }, itemStyle: { color: '#67c23a' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(103,194,58,0.2)' }, { offset: 1, color: 'rgba(103,194,58,0.02)' }] } } },
-      { name: '线索', type: 'line', data: [], smooth: true, showSymbol: false, lineStyle: { width: 2 }, itemStyle: { color: '#e6a23c' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(230,162,60,0.2)' }, { offset: 1, color: 'rgba(230,162,60,0.02)' }] } } },
+      { name: '任务', type: 'line', data: [], smooth: true, showSymbol: false, lineStyle: { width: 2.5 }, itemStyle: { color: '#409eff' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(64,158,255,0.25)' }, { offset: 1, color: 'rgba(64,158,255,0.02)' }] } } },
+      { name: '内容', type: 'line', data: [], smooth: true, showSymbol: false, lineStyle: { width: 2.5 }, itemStyle: { color: '#67c23a' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(103,194,58,0.25)' }, { offset: 1, color: 'rgba(103,194,58,0.02)' }] } } },
+      { name: '线索', type: 'line', data: [], smooth: true, showSymbol: false, lineStyle: { width: 2.5 }, itemStyle: { color: '#e6a23c' }, areaStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: 'rgba(230,162,60,0.25)' }, { offset: 1, color: 'rgba(230,162,60,0.02)' }] } } },
     ],
-  })
+  }
+}
 
-  window.addEventListener('resize', () => chartInstance?.resize())
+function getSuccessOption() {
+  return {
+    tooltip: { 
+      trigger: 'item',
+      backgroundColor: 'rgba(255,255,255,0.96)',
+      borderColor: '#ebeef5',
+      textStyle: { color: '#303133' },
+    },
+    series: [{
+      type: 'pie',
+      radius: ['55%', '78%'],
+      avoidLabelOverlap: false,
+      itemStyle: { borderRadius: 6, borderColor: '#fff', borderWidth: 2 },
+      label: { show: false },
+      emphasis: { scaleSize: 6 },
+      labelLine: { show: false },
+      data: [
+        { value: successData.value.success, name: '成功', itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 1, colorStops: [{ offset: 0, color: '#67c23a' }, { offset: 1, color: '#95d475' }] } } },
+        { value: successData.value.fail, name: '失败', itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 1, y2: 1, colorStops: [{ offset: 0, color: '#f56c6c' }, { offset: 1, color: '#fab6b6' }] } } },
+      ],
+    }],
+  }
+}
+
+function getSourceOption(data: any[]) {
+  return {
+    tooltip: { 
+      trigger: 'item',
+      backgroundColor: 'rgba(255,255,255,0.96)',
+      borderColor: '#ebeef5',
+      textStyle: { color: '#303133' },
+    },
+    series: [{
+      type: 'pie',
+      radius: ['40%', '70%'],
+      center: ['50%', '50%'],
+      itemStyle: { borderRadius: 8, borderColor: '#fff', borderWidth: 2 },
+      label: { show: true, position: 'outside', formatter: '{b}\n{d}%', fontSize: 11, color: '#606266' },
+      labelLine: { length: 8, length2: 12 },
+      data: data.length > 0 ? data : [{ value: 0, name: '暂无数据', itemStyle: { color: '#ebeef5' } }],
+    }],
+  }
 }
 
 function updateTrendChart(data: any[]) {
-  if (!chartInstance || !data?.length) return
-
-  chartInstance.setOption({
+  if (!trendInstance || !data?.length) return
+  trendInstance.setOption({
     xAxis: { data: data.map((d: any) => d.date.slice(5)) },
     series: [
-      { data: data.map((d: any) => d.tasks) },
-      { data: data.map((d: any) => d.contents) },
-      { data: data.map((d: any) => d.leads) },
+      { data: data.map((d: any) => d.tasks || 0) },
+      { data: data.map((d: any) => d.contents || 0) },
+      { data: data.map((d: any) => d.leads || 0) },
     ],
   })
+}
+
+function updateSuccessChart() {
+  if (!successInstance) return
+  successInstance.setOption(getSuccessOption())
+}
+
+function updateSourceChart(agents: any[]) {
+  if (!sourceInstance) return
+  const typeCount: Record<string, number> = {}
+  agents.forEach(a => {
+    typeCount[a.type] = (typeCount[a.type] || 0) + (a.total_runs || 0)
+  })
+  const colors = ['#409eff', '#67c23a', '#e6a23c', '#f56c6c', '#722ed1', '#13c2c2', '#eb2f96', '#fa8c16', '#52c41a', '#2f54eb', '#1890ff']
+  const data = Object.entries(typeCount).map(([type, count], i) => ({
+    value: count,
+    name: getTypeLabel(type),
+    itemStyle: { color: colors[i % colors.length] },
+  })).sort((a, b) => b.value - a.value)
+  
+  sourceData.value = data
+  sourceInstance.setOption(getSourceOption(data))
 }
 </script>
 
@@ -325,7 +584,7 @@ function updateTrendChart(data: any[]) {
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   transition: all 0.25s ease;
   overflow: hidden;
-  cursor: default;
+  cursor: pointer;
 }
 
 .stat-card:hover {
@@ -392,6 +651,20 @@ function updateTrendChart(data: any[]) {
   margin-top: 2px;
 }
 
+.stat-card__trend {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  font-size: 11px;
+  color: #909399;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.stat-card__trend.up { color: #67c23a; }
+.stat-card__trend.down { color: #f56c6c; }
+
 /* Dashboard Cards */
 .dashboard-card {
   height: 100%;
@@ -412,13 +685,51 @@ function updateTrendChart(data: any[]) {
 }
 
 .chart-container {
-  height: 300px;
   width: 100%;
 }
 
+.chart-container--trend {
+  height: 300px;
+}
+
+.chart-container--success {
+  height: 180px;
+}
+
+.chart-container--source {
+  height: 250px;
+}
+
+/* Success Legend */
+.success-legend {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #f5f5f5;
+}
+
+.success-legend__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #606266;
+}
+
+.success-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.success-legend__dot--success { background: #67c23a; }
+.success-legend__dot--fail { background: #f56c6c; }
+
 /* Agent Status List */
 .agent-status-list {
-  max-height: 300px;
+  max-height: 320px;
   overflow-y: auto;
 }
 
@@ -426,18 +737,49 @@ function updateTrendChart(data: any[]) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 0;
+  padding: 12px 8px;
   border-bottom: 1px solid #f5f5f5;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-radius: 6px;
+}
+
+.agent-status-item:hover {
+  background: #f5f7fa;
 }
 
 .agent-status-item:last-child {
   border-bottom: none;
 }
 
-.agent-status-item__info {
+.agent-status-item__left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+}
+
+.agent-status-item__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #c0c4cc;
+}
+
+.agent-status-item__pulse--active {
+  background: #67c23a;
+  box-shadow: 0 0 0 3px rgba(103, 194, 58, 0.2);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(103, 194, 58, 0.2); }
+  50% { box-shadow: 0 0 0 6px rgba(103, 194, 58, 0.1); }
+}
+
+.agent-status-item__info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .agent-status-item__name {
@@ -448,9 +790,17 @@ function updateTrendChart(data: any[]) {
 .agent-status-item__type {
   font-size: 11px;
   color: #909399;
-  background: #f5f5f5;
-  padding: 2px 6px;
-  border-radius: 4px;
+}
+
+.agent-status-item__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.agent-status-item__runs {
+  font-size: 12px;
+  color: #909399;
 }
 
 /* Timeline */
@@ -469,6 +819,15 @@ function updateTrendChart(data: any[]) {
   font-size: 14px;
 }
 
+.timeline-content__error {
+  font-size: 12px;
+  color: #f56c6c;
+  margin-top: 4px;
+  background: #fef0f0;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
 /* Lead Table */
 .lead-table :deep(.el-table__inner-wrapper::before) {
   display: none;
@@ -485,7 +844,6 @@ function updateTrendChart(data: any[]) {
   width: 36px;
   height: 36px;
   border-radius: 8px;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: #fff;
   display: flex;
   align-items: center;
@@ -526,15 +884,92 @@ function updateTrendChart(data: any[]) {
   }
   
   .stat-card {
-    margin-bottom: 12px;
+    padding: 16px;
+    margin-bottom: 10px;
+  }
+  
+  .stat-card__icon {
+    width: 44px;
+    height: 44px;
   }
   
   .stat-card__value {
-    font-size: 22px;
+    font-size: 20px;
   }
   
-  .chart-container {
-    height: 220px;
+  .stat-card__label {
+    font-size: 12px;
+  }
+  
+  .stat-card__trend {
+    display: none;
+  }
+  
+  .chart-row {
+    margin-bottom: 12px;
+  }
+  
+  .chart-container--trend {
+    height: 200px;
+  }
+  
+  .chart-container--success {
+    height: 140px;
+  }
+  
+  .chart-container--source {
+    height: 180px;
+  }
+  
+  .agent-status-list {
+    max-height: 240px;
+  }
+  
+  .agent-status-item__type {
+    display: none;
+  }
+  
+  .agent-status-item__runs {
+    display: none;
+  }
+  
+  .timeline-content__agent {
+    font-size: 13px;
+  }
+  
+  .lead-item__company {
+    display: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 14px;
+  }
+  
+  .stat-card__icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .stat-card__value {
+    font-size: 18px;
+  }
+  
+  .stat-card__trend {
+    position: static;
+    margin-top: 4px;
+  }
+  
+  .chart-container--trend {
+    height: 180px;
+  }
+  
+  .card-header__left span {
+    font-size: 14px;
   }
 }
 </style>

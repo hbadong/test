@@ -15,14 +15,14 @@
 
     <el-row :gutter="20" class="agents-grid">
       <el-col v-for="agent in agents" :key="agent.id" :xs="24" :sm="12" :md="8" :lg="6">
-        <div class="agent-card" :class="{ 'agent-card--active': agent.status === 'active' }">
+        <div class="agent-card" :class="{ 'agent-card--active': agent.status === 'active' }" @click="goDetail(agent)">
           <div class="agent-card__header">
             <div class="agent-card__icon" :style="{ background: agentColors[agent.type]?.gradient || '#f0f0f0' }">
               <el-icon :size="24" color="#fff">
                 <component :is="agentIcons[agent.type] || Monitor" />
               </el-icon>
             </div>
-            <div class="agent-card__status">
+            <div class="agent-card__status" @click.stop>
               <el-switch
                 v-model="agent.status"
                 active-value="active"
@@ -54,7 +54,7 @@
             </div>
           </div>
 
-          <div class="agent-card__actions">
+          <div class="agent-card__actions" @click.stop>
             <el-button size="small" type="primary" @click="executeAgent(agent)" :loading="running[agent.id]" plain>
               <el-icon><CaretRight /></el-icon>运行
             </el-button>
@@ -145,9 +145,12 @@
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElNotification } from 'element-plus'
 import { Monitor, TrendCharts, EditPen, VideoCamera, Search, Location, ChatDotRound, User, DocumentChecked, Phone, VideoPlay, VideoPause, CaretRight, Setting, Document } from '@element-plus/icons-vue'
 import api from '../api'
+
+const router = useRouter()
 
 const agents = ref<any[]>([])
 const running = ref<Record<string, boolean>>({})
@@ -303,6 +306,10 @@ async function stopAll() {
   ElMessage.success('已停止所有AI员工')
   await fetchAgents()
 }
+
+function goDetail(agent: any) {
+  router.push(`/agents/${agent.id}`)
+}
 </script>
 
 <style scoped>
@@ -360,6 +367,7 @@ async function stopAll() {
   position: relative;
   overflow: hidden;
   border: 1px solid #f0f0f0;
+  cursor: pointer;
 }
 
 .agent-card:hover {
@@ -496,10 +504,66 @@ async function stopAll() {
   .agents-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .agents-header__right {
+    flex-wrap: wrap;
   }
   
   .agent-card {
     margin-bottom: 16px;
+    padding: 16px;
+  }
+  
+  .agent-card__icon {
+    width: 44px;
+    height: 44px;
+  }
+  
+  .agent-card__name {
+    font-size: 16px;
+  }
+  
+  .agent-card__desc {
+    font-size: 12px;
+  }
+  
+  .agent-card__stat-value {
+    font-size: 18px;
+  }
+  
+  .agent-card__actions {
+    flex-wrap: wrap;
+  }
+  
+  .agent-card__actions .el-button {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .agents-header__title h2 {
+    font-size: 20px;
+  }
+  
+  .agent-card__stats {
+    gap: 8px;
+  }
+  
+  .agent-card__stat {
+    padding: 6px 12px;
+  }
+  
+  .agent-card__actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .agent-card__actions .el-button {
+    width: 100%;
   }
 }
 </style>

@@ -53,9 +53,20 @@
             <span class="status-text">系统运行中</span>
           </div>
           <el-divider direction="vertical" />
-          <el-avatar :size="32" class="user-avatar">
-            <el-icon><UserFilled /></el-icon>
-          </el-avatar>
+          <el-dropdown trigger="click" @command="handleUserCommand">
+            <div class="user-info">
+              <el-avatar :size="32" class="user-avatar">
+                {{ userInfo?.username?.charAt(0)?.toUpperCase() || 'U' }}
+              </el-avatar>
+              <span class="username">{{ userInfo?.username || '用户' }}</span>
+            </div>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="profile">个人设置</el-dropdown-item>
+                <el-dropdown-item command="logout" divided>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </el-header>
       <el-main class="main-content">
@@ -66,16 +77,66 @@
         </router-view>
       </el-main>
     </el-container>
+    
+    <!-- Mobile Bottom Navigation -->
+    <nav class="mobile-nav">
+      <button class="mobile-nav__item" :class="{ 'mobile-nav__item--active': route.path === '/dashboard' }" @click="$router.push('/dashboard')">
+        <el-icon class="mobile-nav__icon"><DataBoard /></el-icon>
+        <span>看板</span>
+      </button>
+      <button class="mobile-nav__item" :class="{ 'mobile-nav__item--active': route.path.startsWith('/agents') }" @click="$router.push('/agents')">
+        <el-icon class="mobile-nav__icon"><Avatar /></el-icon>
+        <span>员工</span>
+      </button>
+      <button class="mobile-nav__item" :class="{ 'mobile-nav__item--active': route.path === '/workflows' }" @click="$router.push('/workflows')">
+        <el-icon class="mobile-nav__icon"><Connection /></el-icon>
+        <span>工作流</span>
+      </button>
+      <button class="mobile-nav__item" :class="{ 'mobile-nav__item--active': route.path === '/contents' }" @click="$router.push('/contents')">
+        <el-icon class="mobile-nav__icon"><Document /></el-icon>
+        <span>内容</span>
+      </button>
+      <button class="mobile-nav__item" :class="{ 'mobile-nav__item--active': route.path === '/leads' }" @click="$router.push('/leads')">
+        <el-icon class="mobile-nav__icon"><UserFilled /></el-icon>
+        <span>线索</span>
+      </button>
+      <button class="mobile-nav__item" :class="{ 'mobile-nav__item--active': route.path === '/settings' }" @click="$router.push('/settings')">
+        <el-icon class="mobile-nav__icon"><Setting /></el-icon>
+        <span>设置</span>
+      </button>
+    </nav>
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
+import { computed, ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { Monitor, DataBoard, Avatar, Connection, Document, UserFilled, Setting } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
+import { logout } from './api'
 
 const route = useRoute()
+const router = useRouter()
 const activeMenu = computed(() => route.path)
+
+const userInfo = ref<any>(null)
+
+onMounted(() => {
+  const userStr = localStorage.getItem('user')
+  if (userStr) {
+    try {
+      userInfo.value = JSON.parse(userStr)
+    } catch { /* ignore */ }
+  }
+})
+
+function handleUserCommand(command: string) {
+  if (command === 'logout') {
+    logout()
+  } else if (command === 'profile') {
+    router.push('/settings')
+  }
+}
 
 const iconMap: Record<string, any> = {
   '/dashboard': DataBoard,
@@ -86,7 +147,10 @@ const iconMap: Record<string, any> = {
   '/settings': Setting,
 }
 
-const headerIcon = computed(() => iconMap[route.path] || Monitor)
+const headerIcon = computed(() => {
+  if (route.path.startsWith('/agents/')) return Avatar
+  return iconMap[route.path] || Monitor
+})
 
 const titleMap: Record<string, string> = {
   '/dashboard': '数据看板',
@@ -97,7 +161,10 @@ const titleMap: Record<string, string> = {
   '/settings': '系统设置',
 }
 
-const currentTitle = computed(() => titleMap[route.path] || '首页')
+const currentTitle = computed(() => {
+  if (route.path.startsWith('/agents/')) return 'Agent 详情'
+  return titleMap[route.path] || '首页'
+})
 </script>
 
 <style>
@@ -354,15 +421,30 @@ body {
   font-weight: 500;
 }
 
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  transition: background var(--transition-fast);
+}
+
+.user-info:hover {
+  background: rgba(0, 0, 0, 0.04);
+}
+
 .user-avatar {
   background: linear-gradient(135deg, var(--primary-color), #7c3aed);
   color: #fff;
-  cursor: pointer;
-  transition: transform var(--transition-fast);
+  font-weight: 600;
 }
 
-.user-avatar:hover {
-  transform: scale(1.05);
+.username {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-weight: 500;
 }
 
 /* Main Content */
@@ -468,35 +550,92 @@ body {
 /* Responsive */
 @media (max-width: 768px) {
   .sidebar {
-    width: 64px !important;
-  }
-  
-  .logo-text,
-  .sidebar-menu span,
-  .sidebar-footer {
     display: none;
   }
   
-  .logo {
-    justify-content: center;
-    padding: 0;
-  }
-  
-  .sidebar-menu .el-menu-item {
-    justify-content: center;
-    padding: 0 !important;
-  }
-  
-  .sidebar-menu .el-menu-item .el-icon {
-    margin-right: 0;
+  .app-container {
+    flex-direction: column;
   }
   
   .header {
-    padding: 0 16px;
+    padding: 0 12px;
+    height: 56px;
+  }
+  
+  .status-indicator {
+    display: none;
+  }
+  
+  .el-divider--vertical {
+    display: none;
+  }
+  
+  .page-title {
+    font-size: 16px;
   }
   
   .main-content {
-    padding: 16px;
+    padding: 12px;
+    padding-bottom: 72px;
+    height: calc(100vh - 56px);
+  }
+  
+  .user-info .username {
+    display: none;
+  }
+  
+  /* Mobile Bottom Navigation */
+  .app-container::after {
+    content: '';
+  }
+}
+
+/* Mobile Bottom Navigation */
+.mobile-nav {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .mobile-nav {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 56px;
+    background: #fff;
+    box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.08);
+    z-index: 100;
+    justify-content: space-around;
+    align-items: center;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  
+  .mobile-nav__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    padding: 6px 12px;
+    color: #909399;
+    font-size: 10px;
+    cursor: pointer;
+    transition: color 0.2s;
+    border: none;
+    background: none;
+    min-width: 56px;
+  }
+  
+  .mobile-nav__item--active {
+    color: var(--primary-color);
+  }
+  
+  .mobile-nav__item:active {
+    opacity: 0.7;
+  }
+  
+  .mobile-nav__icon {
+    font-size: 22px;
   }
 }
 </style>

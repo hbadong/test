@@ -15,12 +15,12 @@
           <div class="settings-section">
             <h3 class="settings-section__title">大模型服务配置</h3>
             <p class="settings-section__desc">配置AI智能体使用的大语言模型服务</p>
-            <el-form :model="aiForm" label-width="140px" class="settings-form">
+            <el-form :model="aiForm" label-width="120px" class="settings-form">
               <el-form-item label="AI服务商">
-                <el-select v-model="aiForm['llm.provider']" style="width: 100%">
+                <el-select v-model="aiForm['llm.provider']" style="width: 100%" @change="onProviderChange">
+                  <el-option label="Mock (开发测试)" value="mock" />
                   <el-option label="OpenAI (GPT-4/GPT-3.5)" value="openai" />
                   <el-option label="通义千问 (Qwen)" value="qianwen" />
-                  <el-option label="自定义API" value="custom" />
                 </el-select>
               </el-form-item>
               <el-form-item label="API密钥">
@@ -30,12 +30,26 @@
                 <el-input v-model="aiForm['llm.api_url']" placeholder="https://api.openai.com/v1" />
               </el-form-item>
               <el-form-item label="模型名称">
-                <el-input v-model="aiForm['llm.model']" placeholder="gpt-4" />
+                <el-select v-model="aiForm['llm.model']" style="width: 100%" filterable allow-create>
+                  <el-option label="gpt-4o" value="gpt-4o" />
+                  <el-option label="gpt-4" value="gpt-4" />
+                  <el-option label="gpt-3.5-turbo" value="gpt-3.5-turbo" />
+                  <el-option label="qwen-plus" value="qwen-plus" />
+                  <el-option label="qwen-turbo" value="qwen-turbo" />
+                </el-select>
               </el-form-item>
               <el-form-item>
-                <el-button type="primary" @click="saveAiConfig">
-                  <el-icon><Check /></el-icon>保存AI配置
-                </el-button>
+                <div style="display: flex; gap: 12px">
+                  <el-button type="primary" @click="saveAiConfig">
+                    <el-icon><Check /></el-icon>保存AI配置
+                  </el-button>
+                  <el-button @click="testLLM" :loading="testingLLM">
+                    <el-icon><Connection /></el-icon>测试连接
+                  </el-button>
+                </div>
+              </el-form-item>
+              <el-form-item v-if="llmTestResult">
+                <el-alert :title="llmTestResult" :type="llmTestResult.includes('成功') ? 'success' : 'error'" show-icon :closable="false" />
               </el-form-item>
             </el-form>
           </div>
@@ -43,17 +57,47 @@
           <el-divider />
 
           <div class="settings-section">
-            <h3 class="settings-section__title">语音与图像服务</h3>
-            <el-form :model="aiForm" label-width="140px" class="settings-form">
-              <el-form-item label="语音合成">
+            <h3 class="settings-section__title">语音合成服务</h3>
+            <p class="settings-section__desc">数字人、AI电销等模块的语音输出</p>
+            <el-form :model="aiForm" label-width="120px" class="settings-form">
+              <el-form-item label="TTS服务商">
                 <el-select v-model="aiForm['tts.provider']" style="width: 100%">
-                  <el-option label="默认" value="default" />
+                  <el-option label="Mock (开发测试)" value="mock" />
                   <el-option label="Azure TTS" value="azure" />
                   <el-option label="阿里云TTS" value="aliyun" />
                 </el-select>
               </el-form-item>
+              <el-form-item label="语音音色" v-if="aiForm['tts.provider'] !== 'mock'">
+                <el-input v-model="aiForm['tts.voice']" placeholder="默认音色" />
+              </el-form-item>
               <el-form-item>
-                <el-button type="primary" @click="saveAiConfig">保存</el-button>
+                <el-button type="primary" @click="saveAiConfig">保存配置</el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+
+          <el-divider />
+
+          <div class="settings-section">
+            <h3 class="settings-section__title">图像生成服务</h3>
+            <p class="settings-section__desc">AI创作模块的图片生成</p>
+            <el-form :model="aiForm" label-width="120px" class="settings-form">
+              <el-form-item label="Vision服务商">
+                <el-select v-model="aiForm['vision.provider']" style="width: 100%">
+                  <el-option label="Mock (开发测试)" value="mock" />
+                  <el-option label="OpenAI DALL-E 3" value="openai" />
+                  <el-option label="Stability AI" value="stability" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="图片风格" v-if="aiForm['vision.provider'] !== 'mock'">
+                <el-select v-model="aiForm['vision.style']" style="width: 100%">
+                  <el-option label="自然风" value="natural" />
+                  <el-option label="动漫风" value="anime" />
+                  <el-option label="写实风" value="realistic" />
+                </el-select>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" @click="saveAiConfig">保存配置</el-button>
               </el-form-item>
             </el-form>
           </div>
@@ -109,17 +153,19 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Setting, Check, Monitor } from '@element-plus/icons-vue'
+import { Setting, Check, Monitor, Connection } from '@element-plus/icons-vue'
 import api from '../api'
 
 const activeTab = ref('ai')
 const aiForm = ref<Record<string, string>>({})
 const prospectForm = ref<Record<string, string>>({})
 const defaultRadius = ref(5000)
+const testingLLM = ref(false)
+const llmTestResult = ref('')
 
 const agentTags = [
-  '一键追爆', 'AI创作', '数字人', '大片自动生成', 
-  'AI拓客', '地图拓客', 'AI个企微', 'AI人事', 
+  '一键追爆', 'AI创作', '数字人', '大片自动生成',
+  'AI拓客', '地图拓客', 'AI个企微', 'AI人事',
   'AI法务', 'AI电销', 'AI直播'
 ]
 
@@ -137,14 +183,49 @@ async function fetchSettings() {
         prospectForm.value[key] = val.value
       }
     }
+    // Set defaults if not configured
+    if (!aiForm.value['llm.provider']) aiForm.value['llm.provider'] = 'mock'
+    if (!aiForm.value['tts.provider']) aiForm.value['tts.provider'] = 'mock'
+    if (!aiForm.value['vision.provider']) aiForm.value['vision.provider'] = 'mock'
   } catch (e) { console.error(e) }
+}
+
+function onProviderChange() {
+  const provider = aiForm.value['llm.provider']
+  if (provider === 'openai') {
+    aiForm.value['llm.api_url'] = 'https://api.openai.com/v1'
+    aiForm.value['llm.model'] = 'gpt-4o'
+  } else if (provider === 'qianwen') {
+    aiForm.value['llm.api_url'] = 'https://dashscope.aliyuncs.com/compatible-mode/v1'
+    aiForm.value['llm.model'] = 'qwen-plus'
+  } else if (provider === 'mock') {
+    aiForm.value['llm.api_key'] = ''
+  }
 }
 
 async function saveAiConfig() {
   try {
     await api.post('/settings/batch', aiForm.value)
-    ElMessage.success('AI配置已保存')
+    // Update AI services on server
+    await api.post('/ai/config/update')
+    ElMessage.success('AI配置已保存并生效')
   } catch (e) { ElMessage.error('保存失败') }
+}
+
+async function testLLM() {
+  testingLLM.value = true
+  llmTestResult.value = ''
+  try {
+    // Save first, then test
+    await api.post('/settings/batch', aiForm.value)
+    await api.post('/ai/config/update')
+    const res: any = await api.post('/ai/test/llm')
+    llmTestResult.value = `测试成功! 回复: ${res.data?.response?.slice(0, 100)}...`
+  } catch (e: any) {
+    llmTestResult.value = e.response?.data?.error || '测试失败'
+  } finally {
+    testingLLM.value = false
+  }
 }
 
 async function saveProspectConfig() {
@@ -237,5 +318,33 @@ async function saveProspectConfig() {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
+}
+
+@media (max-width: 768px) {
+  .settings-tabs {
+    overflow-x: auto;
+  }
+  
+  .setting-section__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  
+  .system-info {
+    padding: 16px;
+  }
+  
+  .system-info__card h3 {
+    font-size: 16px;
+  }
+  
+  .el-form-item__label {
+    font-size: 13px;
+  }
+  
+  .el-col {
+    margin-bottom: 12px;
+  }
 }
 </style>

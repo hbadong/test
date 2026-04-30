@@ -189,4 +189,31 @@ async function deleteWorkflow(wf: any) {
   color: #909399;
   margin-top: 4px;
 }
+
+@media (max-width: 768px) {
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+  
+  .el-table {
+    font-size: 13px;
+  }
+  
+  .el-table__cell {
+    padding: 8px 4px;
+  }
+}
+
+@media (max-width: 480px) {
+  .workflow-node__icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .el-dialog {
+    width: 90% !important;
+  }
+}
 </style>

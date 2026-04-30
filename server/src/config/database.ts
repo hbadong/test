@@ -209,6 +209,7 @@ class DatabaseManager {
     `);
 
     this.seedDefaultSettings();
+    this.seedDefaultAdminUser();
     this.seedDefaultAgents();
   }
 
@@ -217,17 +218,38 @@ class DatabaseManager {
 
     const defaults = [
       ['llm.api_key', '', '大模型API密钥 (OpenAI/通义千问)'],
-      ['llm.provider', 'openai', '大模型服务商: openai | qianwen'],
-      ['llm.model', 'gpt-4', '使用的模型名称'],
+      ['llm.provider', 'mock', '大模型服务商: openai | qianwen | mock'],
+      ['llm.model', 'gpt-4o', '使用的模型名称'],
       ['llm.api_url', 'https://api.openai.com/v1', 'API基础URL'],
-      ['tts.provider', 'default', '语音合成服务商'],
-      ['vision.provider', 'default', '图像生成服务商'],
+      ['tts.api_key', '', 'TTS服务API密钥'],
+      ['tts.provider', 'mock', '语音合成服务商: azure | aliyun | mock'],
+      ['tts.voice', 'default', '默认语音音色'],
+      ['tts.speed', 'normal', '语音速度: slow | normal | fast'],
+      ['vision.api_key', '', 'Vision服务API密钥'],
+      ['vision.provider', 'mock', '图像生成服务商: openai | stability | mock'],
+      ['vision.model', 'dall-e-3', '图像生成模型'],
+      ['vision.api_url', 'https://api.openai.com/v1', 'Vision API基础URL'],
+      ['vision.style', 'natural', '图像风格: natural | anime | realistic'],
       ['system.name', 'AI智能体系统', '系统名称'],
       ['system.timezone', 'Asia/Shanghai', '系统时区'],
     ];
 
     for (const [key, value, desc] of defaults) {
       stmt.run(key, value, desc);
+    }
+  }
+
+  private seedDefaultAdminUser(): void {
+    // Check if any users exist
+    const count = this.db.prepare('SELECT COUNT(*) as count FROM users').get() as any;
+    if (count.count === 0) {
+      // Create default admin user (password: admin123)
+      const bcrypt = require('bcryptjs');
+      const passwordHash = bcrypt.hashSync('admin123', 10);
+      this.db.prepare(
+        `INSERT INTO users (id, username, password_hash, role) VALUES (?, ?, ?, ?)`
+      ).run('admin_default', 'admin', passwordHash, 'admin');
+      logger.info('Default admin user created (username: admin, password: admin123)');
     }
   }
 
