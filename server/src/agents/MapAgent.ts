@@ -137,28 +137,21 @@ export class MapAgent extends BaseAgent {
   }
 
   private storePOILeads(pois: (POIData & { outreachPlan: string })[]): void {
-    const stmt = db.prepare(`
-      INSERT INTO leads (id, source, name, company, phone, email, tags, intent_level, status, notes)
-      VALUES (?, 'map-prospect', ?, '', ?, '', ?, 'unknown', 'new', ?)
-    `);
-
-    const insertMany = db.transaction((items: Array<{ id: string; name: string; phone: string; tags: string; plan: string }>) => {
-      for (const item of items) {
-        stmt.run(item.id, item.name, item.name, item.phone, item.tags, item.plan);
-      }
-    });
-
     try {
-      const items = pois.slice(0, 20).map(poi => ({
-        id: `map_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-        name: poi.name,
-        phone: poi.phone || '',
-        tags: JSON.stringify([poi.category, `rating-${poi.rating.toFixed(1)}`, 'map-lead']),
-        plan: JSON.stringify({ address: poi.address, lat: poi.latitude, lng: poi.longitude, plan: poi.outreachPlan }),
-      }));
+      const stmt = db.prepare(`
+        INSERT INTO leads (id, source, name, company, phone, email, tags, intent_level, status, notes)
+        VALUES (?, 'map-prospect', ?, '', ?, '', ?, 'unknown', 'new', ?)
+      `) as { run: (...args: unknown[]) => void };
 
-      if (items.length > 0) {
-        insertMany(items);
+      for (const poi of pois.slice(0, 20)) {
+        stmt.run(
+          `map_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          poi.name,
+          poi.name,
+          poi.phone || '',
+          JSON.stringify([poi.category, `rating-${poi.rating.toFixed(1)}`, 'map-lead']),
+          JSON.stringify({ address: poi.address, lat: poi.latitude, lng: poi.longitude, plan: poi.outreachPlan }),
+        );
       }
     } catch (error) {
       logger.warn(`[MapAgent] Failed to store POI leads: ${error}`);

@@ -197,23 +197,25 @@ watch(trendPeriod, () => {
 async function fetchDashboard() {
   try {
     const overview = await api.get('/dashboard/overview')
+    const overviewData = overview.data as any
     stats.value = {
       agentCount: 11,
-      contentCount: overview.contents?.reduce((s: number, c: any) => s + c.count, 0) || 0,
-      leadCount: overview.leads?.reduce((s: number, l: any) => s + l.count, 0) || 0,
-      taskCount: overview.tasks?.reduce((s: number, t: any) => s + t.count, 0) || 0,
+      contentCount: overviewData.contents?.reduce((s: number, c: any) => s + c.count, 0) || 0,
+      leadCount: overviewData.leads?.reduce((s: number, l: any) => s + l.count, 0) || 0,
+      taskCount: overviewData.tasks?.reduce((s: number, t: any) => s + t.count, 0) || 0,
     }
 
-    const agents = await api.get('/agents')
-    agentStatusList.value = agents
+    const agentsRes = await api.get('/agents')
+    agentStatusList.value = agentsRes.data
 
-    const tasks = await api.get('/dashboard/tasks/recent')
-    recentTasks.value = (tasks || []).slice(0, 5)
+    const tasksRes = await api.get('/dashboard/tasks/recent')
+    recentTasks.value = (tasksRes.data || []).slice(0, 5)
 
-    const leads = await api.get('/dashboard/leads/summary')
-    recentLeads.value = (leads?.recent || []).slice(0, 5)
+    const leadsRes = await api.get('/dashboard/leads/summary')
+    recentLeads.value = (leadsRes.data?.recent || []).slice(0, 5)
 
-    const dailyStats = await api.get('/dashboard/daily-stats')
+    const dailyRes = await api.get('/dashboard/daily-stats')
+    const dailyStats = dailyRes.data as any[]
     const days = trendPeriod.value === '7' ? dailyStats.slice(-7) : dailyStats
     updateTrendChart(days)
   } catch (e) {

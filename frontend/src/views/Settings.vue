@@ -127,8 +127,9 @@ onMounted(fetchSettings)
 
 async function fetchSettings() {
   try {
-    const settings = await api.get('/settings')
-    for (const [key, val] of Object.entries(settings as Record<string, { value: string }>)) {
+    const res = await api.get('/settings')
+    const settings = res.data as Record<string, { value: string }>
+    for (const [key, val] of Object.entries(settings)) {
       if (key.startsWith('llm.') || key.startsWith('tts.') || key.startsWith('vision.')) {
         aiForm.value[key] = val.value
       }

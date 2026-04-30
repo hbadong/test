@@ -191,6 +191,21 @@ class DatabaseManager {
         role TEXT DEFAULT 'admin',
         created_at TEXT DEFAULT (datetime('now'))
       );
+
+      -- Performance indexes
+      CREATE INDEX IF NOT EXISTS idx_agents_type_status ON agents(type, status);
+      CREATE INDEX IF NOT EXISTS idx_agents_schedule ON agents(schedule) WHERE schedule IS NOT NULL;
+      CREATE INDEX IF NOT EXISTS idx_tasks_agent_id ON tasks(agent_id);
+      CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status);
+      CREATE INDEX IF NOT EXISTS idx_tasks_created ON tasks(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_contents_source ON contents(source_agent_id);
+      CREATE INDEX IF NOT EXISTS idx_contents_status ON contents(status);
+      CREATE INDEX IF NOT EXISTS idx_contents_created ON contents(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_leads_source ON leads(source);
+      CREATE INDEX IF NOT EXISTS idx_leads_intent ON leads(intent_level);
+      CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
+      CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_workflows_active ON workflows(is_active);
     `);
 
     this.seedDefaultSettings();
