@@ -1,0 +1,240 @@
+<template>
+  <div class="settings-page">
+    <el-card>
+      <template #header>
+        <div class="card-header">
+          <div class="card-header__left">
+            <el-icon :size="18" color="#909399"><Setting /></el-icon>
+            <span>系统设置</span>
+          </div>
+        </div>
+      </template>
+
+      <el-tabs v-model="activeTab" class="settings-tabs">
+        <el-tab-pane label="AI配置" name="ai">
+          <div class="settings-section">
+            <h3 class="settings-section__title">大模型服务配置</h3>
+            <p class="settings-section__desc">配置AI智能体使用的大语言模型服务</p>
+            <el-form :model="aiForm" label-width="140px" class="settings-form">
+              <el-form-item label="AI服务商">
+                <el-select v-model="aiForm['llm.provider']" style="width: 100%">
+                  <el-option label="OpenAI (GPT-4/GPT-3.5)" value="openai" />
+                  <el-option label="通义千问 (Qwen)" value="qianwen" />
+                  <el-option label="自定义API" value="custom" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="API密钥">
+                <el-input v-model="aiForm['llm.api_key']" type="password" show-password placeholder="sk-..." />
+              </el-form-item>
+              <el-form-item label="API地址">
+                <el-input v-model="aiForm['llm.api_url']" placeholder="https://api.openai.com/v1" />
+              </el-form-item>
+              <el-form-item label="模型名称">
+                <el-input v-model="aiForm['llm.model']" placeholder="gpt-4" />
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" @click="saveAiConfig">
+                  <el-icon><Check /></el-icon>保存AI配置
+                </el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+
+          <el-divider />
+
+          <div class="settings-section">
+            <h3 class="settings-section__title">语音与图像服务</h3>
+            <el-form :model="aiForm" label-width="140px" class="settings-form">
+              <el-form-item label="语音合成">
+                <el-select v-model="aiForm['tts.provider']" style="width: 100%">
+                  <el-option label="默认" value="default" />
+                  <el-option label="Azure TTS" value="azure" />
+                  <el-option label="阿里云TTS" value="aliyun" />
+                </el-select>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" @click="saveAiConfig">保存</el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="拓客配置" name="prospect">
+          <div class="settings-section">
+            <h3 class="settings-section__title">地图服务配置</h3>
+            <el-form :model="prospectForm" label-width="140px" class="settings-form">
+              <el-form-item label="地图服务商">
+                <el-select v-model="prospectForm['map.provider']" style="width: 100%">
+                  <el-option label="高德地图" value="amap" />
+                  <el-option label="百度地图" value="baidu" />
+                </el-select>
+              </el-form-item>
+              <el-form-item label="默认搜索半径">
+                <el-input-number v-model="defaultRadius" :min="500" :max="50000" :step="500" />
+                <span class="form-unit">米</span>
+              </el-form-item>
+              <el-form-item>
+                <el-button type="primary" @click="saveProspectConfig">保存配置</el-button>
+              </el-form-item>
+            </el-form>
+          </div>
+        </el-tab-pane>
+
+        <el-tab-pane label="系统信息" name="system">
+          <div class="system-info">
+            <div class="system-info__card">
+              <div class="system-info__icon">
+                <el-icon size="32" color="#409eff"><Monitor /></el-icon>
+              </div>
+              <h3>AI智能体AI员工系统</h3>
+              <p class="system-info__version">v1.0.0</p>
+            </div>
+            <el-descriptions :column="1" border class="system-info__desc">
+              <el-descriptions-item label="AI员工数">11个岗位</el-descriptions-item>
+              <el-descriptions-item label="支持岗位">
+                <div class="tags-group">
+                  <el-tag size="small" v-for="tag in agentTags" :key="tag" style="margin: 2px">{{ tag }}</el-tag>
+                </div>
+              </el-descriptions-item>
+              <el-descriptions-item label="运行模式">24小时自动运转</el-descriptions-item>
+              <el-descriptions-item label="适用场景">一人公司、自媒体、电商、实体店、小工作室</el-descriptions-item>
+            </el-descriptions>
+          </div>
+        </el-tab-pane>
+      </el-tabs>
+    </el-card>
+  </div>
+</template>
+
+<script setup lang="ts">
+import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
+import { Setting, Check, Monitor } from '@element-plus/icons-vue'
+import api from '../api'
+
+const activeTab = ref('ai')
+const aiForm = ref<Record<string, string>>({})
+const prospectForm = ref<Record<string, string>>({})
+const defaultRadius = ref(5000)
+
+const agentTags = [
+  '一键追爆', 'AI创作', '数字人', '大片自动生成', 
+  'AI拓客', '地图拓客', 'AI个企微', 'AI人事', 
+  'AI法务', 'AI电销', 'AI直播'
+]
+
+onMounted(fetchSettings)
+
+async function fetchSettings() {
+  try {
+    const settings = await api.get('/settings')
+    for (const [key, val] of Object.entries(settings as Record<string, { value: string }>)) {
+      if (key.startsWith('llm.') || key.startsWith('tts.') || key.startsWith('vision.')) {
+        aiForm.value[key] = val.value
+      }
+      if (key.startsWith('map.')) {
+        prospectForm.value[key] = val.value
+      }
+    }
+  } catch (e) { console.error(e) }
+}
+
+async function saveAiConfig() {
+  try {
+    await api.post('/settings/batch', aiForm.value)
+    ElMessage.success('AI配置已保存')
+  } catch (e) { ElMessage.error('保存失败') }
+}
+
+async function saveProspectConfig() {
+  try {
+    await api.post('/settings/batch', { ...prospectForm.value, 'map.radius': String(defaultRadius.value) })
+    ElMessage.success('拓客配置已保存')
+  } catch (e) { ElMessage.error('保存失败') }
+}
+</script>
+
+<style scoped>
+.settings-page {
+  animation: fadeIn 0.4s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.card-header__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 600;
+  font-size: 15px;
+}
+
+.settings-section {
+  padding: 8px 0;
+}
+
+.settings-section__title {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0 0 4px;
+  color: #303133;
+}
+
+.settings-section__desc {
+  font-size: 13px;
+  color: #909399;
+  margin: 0 0 20px;
+}
+
+.settings-form {
+  max-width: 500px;
+}
+
+.form-unit {
+  margin-left: 8px;
+  color: #909399;
+  font-size: 13px;
+}
+
+.system-info {
+  max-width: 600px;
+}
+
+.system-info__card {
+  text-align: center;
+  padding: 24px;
+  background: linear-gradient(135deg, rgba(64, 158, 255, 0.05) 0%, rgba(114, 46, 209, 0.05) 100%);
+  border-radius: 12px;
+  margin-bottom: 24px;
+}
+
+.system-info__icon {
+  margin-bottom: 12px;
+}
+
+.system-info__card h3 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.system-info__version {
+  color: #909399;
+  margin: 0;
+  font-size: 13px;
+}
+
+.tags-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+</style>

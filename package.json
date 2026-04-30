@@ -1,0 +1,18 @@
+{
+  "name": "ai-employee-system",
+  "version": "1.0.0",
+  "description": "AI智能体AI员工系统 - 11个岗位的自动化运营平台",
+  "private": true,
+  "scripts": {
+    "dev:server": "cd server && npm run dev",
+    "dev:frontend": "cd frontend && npm run dev",
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:frontend\"",
+    "build:server": "cd server && npm run build",
+    "build:frontend": "cd frontend && npm run build",
+    "build": "npm run build:server && npm run build:frontend",
+    "start": "cd server && npm start"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

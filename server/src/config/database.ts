@@ -1,0 +1,251 @@
+import Database from 'better-sqlite3';
+import path from 'path';
+import fs from 'fs';
+import { logger } from '../utils/logger';
+
+const DB_PATH = path.join(process.cwd(), 'data', 'aieployee.db');
+
+export interface AgentRecord {
+  id: string;
+  name: string;
+  type: string;
+  status: string;
+  config: string;
+  schedule: string | null;
+  last_run_at: string | null;
+  total_runs: number;
+  success_count: number;
+  fail_count: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskRecord {
+  id: string;
+  workflow_id: string | null;
+  agent_id: string;
+  status: string;
+  input: string;
+  output: string | null;
+  error_message: string | null;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface ContentRecord {
+  id: string;
+  type: string;
+  title: string;
+  body: string;
+  source_agent_id: string | null;
+  source_url: string | null;
+  tags: string;
+  status: string;
+  publish_platform: string;
+  metrics: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface LeadRecord {
+  id: string;
+  source: string;
+  name: string;
+  company: string;
+  phone: string;
+  email: string;
+  tags: string;
+  intent_level: string;
+  status: string;
+  notes: string | null;
+  assigned_to: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface WorkflowRecord {
+  id: string;
+  name: string;
+  description: string;
+  nodes: string;
+  edges: string;
+  is_active: number;
+  trigger_type: string;
+  trigger_config: string;
+  created_at: string;
+  updated_at: string;
+}
+
+class DatabaseManager {
+  private db: Database.Database;
+  private static instance: DatabaseManager;
+
+  private constructor() {
+    // Ensure data directory exists
+    const dataDir = path.join(process.cwd(), 'data');
+    if (!fs.existsSync(dataDir)) {
+      fs.mkdirSync(dataDir, { recursive: true });
+    }
+
+    this.db = new Database(DB_PATH);
+    this.db.pragma('journal_mode = WAL');
+    this.db.pragma('foreign_keys = ON');
+    this.initializeTables();
+  }
+
+  static getInstance(): DatabaseManager {
+    if (!DatabaseManager.instance) {
+      DatabaseManager.instance = new DatabaseManager();
+    }
+    return DatabaseManager.instance;
+  }
+
+  private initializeTables(): void {
+    this.db.exec(`
+      CREATE TABLE IF NOT EXISTS agents (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        type TEXT NOT NULL,
+        status TEXT DEFAULT 'stopped',
+        config TEXT DEFAULT '{}',
+        schedule TEXT,
+        last_run_at TEXT,
+        total_runs INTEGER DEFAULT 0,
+        success_count INTEGER DEFAULT 0,
+        fail_count INTEGER DEFAULT 0,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS workflows (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        nodes TEXT DEFAULT '[]',
+        edges TEXT DEFAULT '[]',
+        is_active INTEGER DEFAULT 0,
+        trigger_type TEXT DEFAULT 'manual',
+        trigger_config TEXT DEFAULT '{}',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS tasks (
+        id TEXT PRIMARY KEY,
+        workflow_id TEXT,
+        agent_id TEXT NOT NULL,
+        status TEXT DEFAULT 'pending',
+        input TEXT DEFAULT '{}',
+        output TEXT,
+        error_message TEXT,
+        started_at TEXT,
+        completed_at TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (workflow_id) REFERENCES workflows(id),
+        FOREIGN KEY (agent_id) REFERENCES agents(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS contents (
+        id TEXT PRIMARY KEY,
+        type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        body TEXT,
+        source_agent_id TEXT,
+        source_url TEXT,
+        tags TEXT DEFAULT '[]',
+        status TEXT DEFAULT 'draft',
+        publish_platform TEXT DEFAULT '[]',
+        metrics TEXT DEFAULT '{}',
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (source_agent_id) REFERENCES agents(id)
+      );
+
+      CREATE TABLE IF NOT EXISTS leads (
+        id TEXT PRIMARY KEY,
+        source TEXT NOT NULL,
+        name TEXT DEFAULT '',
+        company TEXT DEFAULT '',
+        phone TEXT DEFAULT '',
+        email TEXT DEFAULT '',
+        tags TEXT DEFAULT '[]',
+        intent_level TEXT DEFAULT 'unknown',
+        status TEXT DEFAULT 'new',
+        notes TEXT,
+        assigned_to TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        updated_at TEXT DEFAULT (datetime('now'))
+      );
+
+      CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        username TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        role TEXT DEFAULT 'admin',
+        created_at TEXT DEFAULT (datetime('now'))
+      );
+    `);
+
+    this.seedDefaultSettings();
+    this.seedDefaultAgents();
+  }
+
+  private seedDefaultSettings(): void {
+    const stmt = this.db.prepare(`INSERT OR IGNORE INTO settings (key, value, description) VALUES (?, ?, ?)`);
+
+    const defaults = [
+      ['llm.api_key', '', '大模型API密钥 (OpenAI/通义千问)'],
+      ['llm.provider', 'openai', '大模型服务商: openai | qianwen'],
+      ['llm.model', 'gpt-4', '使用的模型名称'],
+      ['llm.api_url', 'https://api.openai.com/v1', 'API基础URL'],
+      ['tts.provider', 'default', '语音合成服务商'],
+      ['vision.provider', 'default', '图像生成服务商'],
+      ['system.name', 'AI智能体系统', '系统名称'],
+      ['system.timezone', 'Asia/Shanghai', '系统时区'],
+    ];
+
+    for (const [key, value, desc] of defaults) {
+      stmt.run(key, value, desc);
+    }
+  }
+
+  private seedDefaultAgents(): void {
+    const stmt = this.db.prepare(`INSERT OR IGNORE INTO agents (id, name, type, config) VALUES (?, ?, ?, ?)`);
+
+    const agents = [
+      ['trend', '一键追爆', 'trend', JSON.stringify({ platforms: ['douyin', 'weibo', 'xiaohongshu'], industries: [] })],
+      ['create', 'AI创作', 'create', JSON.stringify({ templates: ['copywriting', 'image', 'script'], platforms: ['douyin', 'xiaohongshu', 'wechat'] })],
+      ['avatar', '数字人', 'avatar', JSON.stringify({ avatars: [], voice: 'default', resolution: '1080p' })],
+      ['video', '大片自动生成', 'video', JSON.stringify({ style: 'modern', bgm: 'auto', subtitles: true })],
+      ['prospect', 'AI拓客', 'prospect', JSON.stringify({ channels: ['enterprise', 'social'], target: {} })],
+      ['map-prospect', '地图拓客', 'map-prospect', JSON.stringify({ provider: 'amap', radius: 5000 })],
+      ['wechat', 'AI个企微', 'wechat', JSON.stringify({ mode: 'enterprise', autoReply: true, schedule: true })],
+      ['hr', 'AI人事', 'hr', JSON.stringify({ modules: ['resume', 'attendance', 'qa'] })],
+      ['legal', 'AI法务', 'legal', JSON.stringify({ modules: ['contract-review', 'contract-gen', 'qa'] })],
+      ['call', 'AI电销', 'call', JSON.stringify({ voice: 'female', speed: 'normal', retry: 3 })],
+      ['live', 'AI直播', 'live', JSON.stringify({ avatar: 'default', autoReply: true, products: [] })],
+    ];
+
+    for (const [id, name, type, config] of agents) {
+      stmt.run(id, name, type, config);
+    }
+  }
+
+  getDb(): Database.Database {
+    return this.db;
+  }
+
+  close(): void {
+    this.db.close();
+  }
+}
+
+export const dbManager = DatabaseManager.getInstance();
+export const db: { prepare: Function; exec: Function } = dbManager.getDb() as any;
