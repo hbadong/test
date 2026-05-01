@@ -450,7 +450,7 @@ function goDetail(agent: any) {
 }
 
 .agent-card__stat-label {
-  font-size: 11px;
+  font-size: 12px;
   color: #909399;
 }
 
@@ -559,7 +559,7 @@ function goDetail(agent: any) {
   }
   
   .agent-card__stat-label {
-    font-size: 10px;
+    font-size: 12px;
   }
   
   .agent-card__actions {
@@ -586,7 +586,7 @@ function goDetail(agent: any) {
   }
   
   .agents-header__desc {
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .agents-header-card :deep(.el-card__body) {
@@ -614,7 +614,7 @@ function goDetail(agent: any) {
   }
   
   .agent-card__desc {
-    font-size: 11px;
+    font-size: 12px;
     margin-bottom: 12px;
   }
   

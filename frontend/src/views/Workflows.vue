@@ -856,7 +856,7 @@ function formatTime(dateStr: string): string {
   }
   
   .palette-group__title {
-    font-size: 11px;
+    font-size: 12px;
     margin: 8px 0 6px;
   }
   
@@ -916,7 +916,7 @@ function formatTime(dateStr: string): string {
   }
   
   .workflow-card__desc {
-    font-size: 11px;
+    font-size: 12px;
     margin-bottom: 8px;
     -webkit-line-clamp: 1;
   }
@@ -941,7 +941,7 @@ function formatTime(dateStr: string): string {
   
   .palette-item {
     padding: 6px 8px;
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .editor-canvas {

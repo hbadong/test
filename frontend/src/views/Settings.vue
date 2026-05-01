@@ -434,7 +434,7 @@ async function saveProspectConfig() {
   }
   
   .settings-section__desc {
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .settings-form :deep(.el-form-item__label) {
@@ -460,7 +460,7 @@ async function saveProspectConfig() {
   }
   
   .tags-group .el-tag {
-    font-size: 11px;
+    font-size: 12px;
     padding: 0 6px;
   }
   

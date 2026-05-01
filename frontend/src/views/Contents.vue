@@ -569,10 +569,10 @@ function goToday() {
 }
 
 .platform-tag {
-  font-size: 10px;
+  font-size: 12px;
   padding: 0 6px;
-  height: 18px;
-  line-height: 16px;
+  height: 20px;
+  line-height: 18px;
 }
 
 .metrics-cell {
@@ -663,7 +663,7 @@ function goToday() {
 }
 
 .calendar-event {
-  font-size: 11px;
+  font-size: 12px;
   padding: 3px 6px;
   border-radius: 4px;
   cursor: pointer;
@@ -751,7 +751,7 @@ function goToday() {
   }
   
   .stat-card__label {
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .card-header {
@@ -784,14 +784,14 @@ function goToday() {
   }
   
   .platform-tag {
-    font-size: 9px;
+    font-size: 12px;
     padding: 0 4px;
-    height: 16px;
-    line-height: 14px;
+    height: 18px;
+    line-height: 16px;
   }
   
   .metrics-cell {
-    font-size: 11px;
+    font-size: 12px;
     gap: 8px;
   }
   
@@ -810,7 +810,7 @@ function goToday() {
   
   .calendar-weekday {
     padding: 8px 4px;
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .calendar-day {
@@ -819,12 +819,12 @@ function goToday() {
   }
   
   .calendar-day__date {
-    font-size: 11px;
+    font-size: 12px;
     margin-bottom: 4px;
   }
   
   .calendar-event {
-    font-size: 10px;
+    font-size: 12px;
     padding: 2px 4px;
   }
   
@@ -878,7 +878,7 @@ function goToday() {
   }
   
   .stat-card__label {
-    font-size: 10px;
+    font-size: 12px;
   }
   
   .card-header__right {
@@ -895,12 +895,12 @@ function goToday() {
   }
   
   .calendar-day__date {
-    font-size: 10px;
+    font-size: 12px;
   }
   
   .calendar-event {
-    font-size: 9px;
-    padding: 1px 3px;
+    font-size: 12px;
+    padding: 2px 4px;
   }
   
   .preview-header h2 {

@@ -565,7 +565,7 @@ async function batchDelete() {
 .kanban-card__contact { font-size: 12px; color: #606266; margin-bottom: 8px; }
 .kanban-card__contact .el-icon { margin-right: 4px; }
 
-.kanban-card__footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #909399; border-top: 1px solid #f0f0f0; padding-top: 8px; }
+.kanban-card__footer { display: flex; justify-content: space-between; align-items: center; font-size: 12px; color: #909399; border-top: 1px solid #f0f0f0; padding-top: 8px; }
 
 /* Lead Detail */
 .lead-detail__header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; }
@@ -641,7 +641,7 @@ async function batchDelete() {
   .lead-avatar {
     width: 28px;
     height: 28px;
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .lead-name__text {
@@ -649,7 +649,7 @@ async function batchDelete() {
   }
   
   .lead-name__company {
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .kanban-view {
@@ -691,7 +691,7 @@ async function batchDelete() {
   }
   
   .kanban-card__company {
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .kanban-card__meta {
@@ -699,12 +699,12 @@ async function batchDelete() {
   }
   
   .kanban-card__contact {
-    font-size: 11px;
+    font-size: 12px;
     margin-bottom: 6px;
   }
   
   .kanban-card__footer {
-    font-size: 10px;
+    font-size: 12px;
     padding-top: 6px;
   }
   
@@ -792,7 +792,7 @@ async function batchDelete() {
   }
   
   .stat-mini__label {
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .leads-table :deep(.el-table__cell) {

@@ -832,6 +832,33 @@ html {
   box-shadow: var(--shadow-xl);
 }
 
+/* Dialog responsive width */
+@media (max-width: 768px) {
+  .el-dialog {
+    width: 92vw !important;
+    margin: 0 auto !important;
+  }
+  
+  .el-dialog--full {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .el-dialog {
+    width: 96vw !important;
+    border-radius: var(--radius-md) !important;
+  }
+  
+  .el-dialog__header {
+    padding: 16px 18px !important;
+  }
+  
+  .el-dialog__body {
+    padding: 18px !important;
+  }
+}
+
 .el-dialog__header {
   padding: 20px 24px;
   border-bottom: 1px solid var(--border-light);
@@ -967,8 +994,8 @@ html {
   }
   
   .notification-bell {
-    width: 34px;
-    height: 34px;
+    width: 44px;
+    height: 44px;
   }
   
   /* Mobile Bottom Navigation */
@@ -1063,8 +1090,8 @@ html {
   }
   
   .mobile-nav__item {
-    font-size: 10px;
-    padding: 4px 8px;
+    font-size: 11px;
+    padding: 6px 8px;
   }
   
   .mobile-nav__icon {

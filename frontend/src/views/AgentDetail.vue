@@ -810,7 +810,7 @@ function updateChart() {
     width: 100%;
   }
   
-  .detail-header__title {
+  .detail-header__info h2 {
     font-size: 18px;
   }
   
@@ -827,7 +827,7 @@ function updateChart() {
     min-width: 80px;
   }
   
-  .detail-stats {
+  .stats-row {
     gap: 8px;
     margin-top: 12px;
   }
@@ -844,7 +844,7 @@ function updateChart() {
   }
   
   .mini-stat__label {
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .chart-container {
@@ -884,14 +884,18 @@ function updateChart() {
   
   .result-output {
     padding: 12px;
-    font-size: 11px;
+    font-size: 12px;
     max-height: 300px;
   }
   
   .task-output__json {
     padding: 12px;
-    font-size: 11px;
+    font-size: 12px;
     max-height: 250px;
+  }
+  
+  .mini-stat__label {
+    font-size: 12px;
   }
 }
 
@@ -900,16 +904,15 @@ function updateChart() {
     padding: 14px;
   }
   
-  .detail-header__title {
+  .detail-header__info h2 {
     font-size: 16px;
   }
   
-  .detail-header__type {
-    font-size: 11px;
-    padding: 3px 8px;
+  .detail-header__info p {
+    font-size: 12px;
   }
   
-  .detail-stats {
+  .stats-row {
     gap: 6px;
   }
   
@@ -922,7 +925,7 @@ function updateChart() {
   }
   
   .mini-stat__label {
-    font-size: 10px;
+    font-size: 12px;
   }
   
   .chart-container {
@@ -943,7 +946,27 @@ function updateChart() {
   
   .el-tag {
     padding: 0 6px;
-    font-size: 11px;
+    font-size: 12px;
+  }
+  
+  .result-output {
+    padding: 12px;
+    font-size: 12px;
+    max-height: 250px;
+  }
+  
+  .task-output__json {
+    padding: 12px;
+    font-size: 12px;
+    max-height: 200px;
+  }
+  
+  .task-id {
+    font-size: 12px;
+  }
+  
+  .error-text, .success-text {
+    font-size: 12px;
   }
 }
 </style>

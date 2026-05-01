@@ -739,7 +739,7 @@ function updateSourceChart(agents: any[]) {
   position: absolute;
   right: 16px;
   bottom: 12px;
-  font-size: 11px;
+  font-size: 12px;
   color: #909399;
   display: flex;
   align-items: center;
@@ -878,7 +878,7 @@ function updateSourceChart(agents: any[]) {
 }
 
 .agent-status-item__type {
-  font-size: 11px;
+  font-size: 12px;
   color: #909399;
 }
 
@@ -1054,7 +1054,7 @@ function updateSourceChart(agents: any[]) {
   }
   
   .timeline-content__error {
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .lead-item__company {
@@ -1076,7 +1076,7 @@ function updateSourceChart(agents: any[]) {
   }
   
   .success-legend__item {
-    font-size: 11px;
+    font-size: 12px;
   }
   
   .card-header__actions {
@@ -1111,7 +1111,7 @@ function updateSourceChart(agents: any[]) {
   .stat-card__trend {
     position: static;
     margin-top: 2px;
-    font-size: 10px;
+    font-size: 12px;
   }
   
   .chart-container--trend {
@@ -1160,7 +1160,7 @@ function updateSourceChart(agents: any[]) {
   }
   
   .success-legend__item {
-    font-size: 10px;
+    font-size: 12px;
   }
   
   .card-header__actions {
