@@ -501,60 +501,131 @@ function goDetail(agent: any) {
 }
 
 @media (max-width: 768px) {
+  .agents-header-card {
+    margin-bottom: 16px;
+    border-radius: var(--radius-md);
+  }
+  
+  .agents-header-card :deep(.el-card__body) {
+    padding: 16px;
+  }
+  
   .agents-header {
     flex-direction: column;
     align-items: flex-start;
     gap: 12px;
   }
   
-  .agents-header__right {
-    flex-wrap: wrap;
+  .agents-header__actions {
+    width: 100%;
+    display: flex;
+    gap: 8px;
+  }
+  
+  .agents-header__actions .el-button {
+    flex: 1;
+  }
+  
+  .agents-header__left h2 {
+    font-size: 18px;
+  }
+  
+  .agents-header__desc {
+    font-size: 12px;
   }
   
   .agent-card {
-    margin-bottom: 16px;
+    margin-bottom: 14px;
     padding: 16px;
+    border-radius: var(--radius-md);
   }
   
   .agent-card__icon {
-    width: 44px;
-    height: 44px;
+    width: 42px;
+    height: 42px;
   }
   
   .agent-card__name {
-    font-size: 16px;
+    font-size: 15px;
   }
   
   .agent-card__desc {
     font-size: 12px;
+    min-height: auto;
   }
   
   .agent-card__stat-value {
-    font-size: 18px;
+    font-size: 16px;
+  }
+  
+  .agent-card__stat-label {
+    font-size: 10px;
   }
   
   .agent-card__actions {
     flex-wrap: wrap;
+    gap: 6px;
   }
   
   .agent-card__actions .el-button {
     flex: 1;
     min-width: 0;
     font-size: 12px;
+    padding: 8px 10px;
+  }
+  
+  .agent-card__pulse {
+    top: 16px;
+    right: 16px;
   }
 }
 
 @media (max-width: 480px) {
-  .agents-header__title h2 {
-    font-size: 20px;
+  .agents-header__left h2 {
+    font-size: 16px;
+  }
+  
+  .agents-header__desc {
+    font-size: 11px;
+  }
+  
+  .agents-header-card :deep(.el-card__body) {
+    padding: 14px;
+  }
+  
+  .agent-card {
+    padding: 14px;
+    margin-bottom: 12px;
+    border-radius: var(--radius-sm);
+  }
+  
+  .agent-card__icon {
+    width: 38px;
+    height: 38px;
+  }
+  
+  .agent-card__header {
+    margin-bottom: 12px;
+  }
+  
+  .agent-card__name {
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  
+  .agent-card__desc {
+    font-size: 11px;
+    margin-bottom: 12px;
   }
   
   .agent-card__stats {
-    gap: 8px;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding: 10px 0;
   }
   
-  .agent-card__stat {
-    padding: 6px 12px;
+  .agent-card__stat-value {
+    font-size: 14px;
   }
   
   .agent-card__actions {
@@ -564,6 +635,7 @@ function goDetail(agent: any) {
   
   .agent-card__actions .el-button {
     width: 100%;
+    justify-content: center;
   }
 }
 </style>

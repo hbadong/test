@@ -334,9 +334,18 @@ onBeforeUnmount(() => {
 })
 
 function handleResize() {
+  const isNarrow = window.innerWidth < 480
   trendInstance?.resize()
   successInstance?.resize()
   sourceInstance?.resize()
+  
+  // Update legend visibility on narrow screens
+  if (trendInstance) {
+    trendInstance.setOption({
+      legend: { show: !isNarrow, itemGap: isNarrow ? 10 : 20, textStyle: { fontSize: isNarrow ? 10 : 12 } },
+      grid: { bottom: isNarrow ? '8%' : '12%' },
+    })
+  }
 }
 
 async function fetchDashboard() {
@@ -496,6 +505,7 @@ function initCharts() {
 }
 
 function getTrendOption() {
+  const isNarrow = window.innerWidth < 480
   return {
     tooltip: { 
       trigger: 'axis',
@@ -518,18 +528,19 @@ function getTrendOption() {
     legend: { 
       data: ['任务', '内容', '线索'],
       bottom: 0,
+      show: !isNarrow,
       itemWidth: 14,
       itemHeight: 8,
-      itemGap: 20,
-      textStyle: { fontSize: 12, color: '#606266' },
+      itemGap: isNarrow ? 10 : 20,
+      textStyle: { fontSize: isNarrow ? 10 : 12, color: '#606266' },
     },
-    grid: { left: '3%', right: '4%', bottom: '12%', top: '8%', containLabel: true },
+    grid: { left: '3%', right: '4%', bottom: isNarrow ? '8%' : '12%', top: '8%', containLabel: true },
     xAxis: { 
       type: 'category', 
       data: [],
       axisLine: { lineStyle: { color: '#ebeef5' } },
       axisTick: { show: false },
-      axisLabel: { color: '#909399', fontSize: 11 },
+      axisLabel: { color: '#909399', fontSize: isNarrow ? 9 : 11, rotate: isNarrow ? 30 : 0, interval: isNarrow ? 'auto' : 0 },
     },
     yAxis: { 
       type: 'value',
@@ -1140,6 +1151,30 @@ function updateSourceChart(agents: any[]) {
     flex-direction: column;
     align-items: flex-start;
     gap: 4px;
+  }
+  
+  .success-legend {
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  
+  .success-legend__item {
+    font-size: 10px;
+  }
+  
+  .card-header__actions {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  
+  .card-header__actions .el-radio-group {
+    display: none;
+  }
+  
+  .card-header__actions .el-button {
+    font-size: 12px;
+    padding: 4px 8px;
   }
 }
 </style>

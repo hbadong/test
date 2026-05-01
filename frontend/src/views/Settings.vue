@@ -321,30 +321,151 @@ async function saveProspectConfig() {
 }
 
 @media (max-width: 768px) {
-  .settings-tabs {
-    overflow-x: auto;
+  .settings-page {
+    padding: 0;
   }
   
-  .setting-section__header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
+  .settings-page :deep(.el-card) {
+    border-radius: var(--radius-md);
+  }
+  
+  .settings-page :deep(.el-card__header) {
+    padding: 16px;
+  }
+  
+  .settings-page :deep(.el-card__body) {
+    padding: 0 16px 16px;
+  }
+  
+  .card-header__left {
+    font-size: 14px;
+  }
+  
+  .settings-tabs {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .settings-tabs :deep(.el-tabs__header) {
+    margin-bottom: 16px;
+  }
+  
+  .settings-tabs :deep(.el-tabs__nav-wrap::after) {
+    height: 1px;
+  }
+  
+  .settings-section {
+    padding: 4px 0;
+  }
+  
+  .settings-section__title {
+    font-size: 14px;
+  }
+  
+  .settings-section__desc {
+    font-size: 12px;
+    margin-bottom: 16px;
+  }
+  
+  .settings-form {
+    max-width: 100%;
+  }
+  
+  .settings-form :deep(.el-form-item__label) {
+    font-size: 13px;
+    padding-right: 8px;
   }
   
   .system-info {
-    padding: 16px;
+    max-width: 100%;
+  }
+  
+  .system-info__card {
+    padding: 20px 16px;
+    margin-bottom: 20px;
+    border-radius: var(--radius-md);
   }
   
   .system-info__card h3 {
     font-size: 16px;
   }
   
-  .el-form-item__label {
+  .system-info__version {
+    font-size: 12px;
+  }
+  
+  .system-info__desc {
     font-size: 13px;
   }
   
-  .el-col {
-    margin-bottom: 12px;
+  .tags-group {
+    gap: 6px;
+  }
+  
+  .form-unit {
+    font-size: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .settings-page :deep(.el-card) {
+    border-radius: var(--radius-sm);
+  }
+  
+  .settings-page :deep(.el-card__header) {
+    padding: 14px;
+  }
+  
+  .settings-page :deep(.el-card__body) {
+    padding: 0 14px 14px;
+  }
+  
+  .card-header__left span {
+    font-size: 13px;
+  }
+  
+  .settings-tabs :deep(.el-tabs__item) {
+    font-size: 13px;
+    padding: 0 12px;
+  }
+  
+  .settings-section__title {
+    font-size: 13px;
+  }
+  
+  .settings-section__desc {
+    font-size: 11px;
+  }
+  
+  .settings-form :deep(.el-form-item__label) {
+    font-size: 12px;
+    width: 90px !important;
+  }
+  
+  .settings-form :deep(.el-form-item__content) {
+    margin-left: 90px !important;
+  }
+  
+  .system-info__card {
+    padding: 16px 12px;
+    margin-bottom: 16px;
+  }
+  
+  .system-info__card h3 {
+    font-size: 14px;
+  }
+  
+  .tags-group {
+    gap: 4px;
+  }
+  
+  .tags-group .el-tag {
+    font-size: 11px;
+    padding: 0 6px;
+  }
+  
+  .el-button {
+    font-size: 13px;
   }
 }
 </style>

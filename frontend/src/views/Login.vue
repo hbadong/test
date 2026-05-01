@@ -342,4 +342,113 @@ async function handleRegister() {
   font-size: 16px;
   font-weight: 600;
 }
+
+@media (max-width: 768px) {
+  .login-container {
+    max-width: 100%;
+    padding: 16px;
+  }
+  
+  .login-card {
+    padding: 32px 24px;
+    border-radius: 16px;
+  }
+  
+  .login-card__logo {
+    width: 56px;
+    height: 56px;
+    border-radius: 14px;
+  }
+  
+  .login-card__logo .el-icon {
+    --el-icon-size: 28px;
+  }
+  
+  .login-card__header h1 {
+    font-size: 22px;
+  }
+  
+  .login-card__header p {
+    font-size: 13px;
+  }
+  
+  .login-card__header {
+    margin-bottom: 24px;
+  }
+  
+  .login-form {
+    margin-top: 20px;
+  }
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    align-items: stretch;
+  }
+  
+  .login-bg__grid {
+    background-size: 40px 40px;
+  }
+  
+  .login-bg__gradient {
+    width: 400px;
+    height: 400px;
+    top: -20%;
+    right: -10%;
+  }
+  
+  .login-container {
+    padding: 0;
+    display: flex;
+    align-items: center;
+  }
+  
+  .login-card {
+    margin: 16px;
+    padding: 28px 20px;
+    border-radius: 14px;
+  }
+  
+  .login-card__logo {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+  }
+  
+  .login-card__logo .el-icon {
+    --el-icon-size: 24px;
+  }
+  
+  .login-card__header h1 {
+    font-size: 20px;
+  }
+  
+  .login-card__header p {
+    font-size: 12px;
+  }
+  
+  .login-card__header {
+    margin-bottom: 20px;
+  }
+  
+  .login-tabs :deep(.el-tabs__item) {
+    font-size: 14px;
+    padding: 0 14px;
+  }
+  
+  .login-form {
+    margin-top: 16px;
+  }
+  
+  .login-form :deep(.el-input__wrapper) {
+    padding: 10px 14px;
+    border-radius: 10px;
+  }
+  
+  .login-submit {
+    height: 44px;
+    font-size: 15px;
+    border-radius: 10px;
+  }
+}
 </style>
