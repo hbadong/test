@@ -82,4 +82,24 @@ router.post('/import', (req, res) => {
   res.json({ success: true, imported });
 });
 
+// Follow-up records
+router.get('/:id/follow-ups', (req, res) => {
+  const records = db.prepare(
+    "SELECT * FROM lead_follow_ups WHERE lead_id = ? ORDER BY created_at DESC"
+  ).all(req.params.id);
+  res.json(records);
+});
+
+router.post('/:id/follow-ups', (req, res) => {
+  const { type, note } = req.body;
+  const id = `fu_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+  db.prepare(`
+    INSERT INTO lead_follow_ups (id, lead_id, type, note)
+    VALUES (?, ?, ?, ?)
+  `).run(id, req.params.id, type || 'other', note);
+
+  res.json({ id, success: true });
+});
+
 export default router;

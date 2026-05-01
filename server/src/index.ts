@@ -8,6 +8,7 @@ import agentRoutes, { initAllAgents } from './routes/agents';
 import workflowRoutes from './routes/workflows';
 import contentRoutes from './routes/content';
 import leadRoutes from './routes/leads';
+import taskRoutes from './routes/tasks';
 import dashboardRoutes from './routes/dashboard';
 import settingRoutes from './routes/settings';
 import aiServicesRoutes from './routes/ai-services';
@@ -48,6 +49,7 @@ app.use('/api/contents', optionalAuth, contentRoutes);
 app.use('/api/leads', optionalAuth, leadRoutes);
 app.use('/api/dashboard', optionalAuth, dashboardRoutes);
 app.use('/api/settings', optionalAuth, settingRoutes);
+app.use('/api/tasks', optionalAuth, taskRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

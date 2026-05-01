@@ -177,6 +177,15 @@ class DatabaseManager {
         updated_at TEXT DEFAULT (datetime('now'))
       );
 
+      CREATE TABLE IF NOT EXISTS lead_follow_ups (
+        id TEXT PRIMARY KEY,
+        lead_id TEXT NOT NULL,
+        type TEXT DEFAULT 'other',
+        note TEXT,
+        created_at TEXT DEFAULT (datetime('now')),
+        FOREIGN KEY (lead_id) REFERENCES leads(id) ON DELETE CASCADE
+      );
+
       CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL,
@@ -205,6 +214,8 @@ class DatabaseManager {
       CREATE INDEX IF NOT EXISTS idx_leads_intent ON leads(intent_level);
       CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(status);
       CREATE INDEX IF NOT EXISTS idx_leads_created ON leads(created_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_follow_ups_lead ON lead_follow_ups(lead_id);
+      CREATE INDEX IF NOT EXISTS idx_follow_ups_created ON lead_follow_ups(created_at DESC);
       CREATE INDEX IF NOT EXISTS idx_workflows_active ON workflows(is_active);
     `);
 

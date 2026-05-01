@@ -82,6 +82,29 @@
               <span>{{ node.label }}</span>
             </div>
           </div>
+          
+          <!-- Execution Controls -->
+          <div class="execution-controls" v-if="editingWorkflowData">
+            <el-divider>运行控制</el-divider>
+            <el-button 
+              type="primary" 
+              size="small" 
+              @click="runWorkflowVisualization"
+              :loading="executing"
+              :disabled="executing"
+              style="width: 100%"
+            >
+              <el-icon v-if="!executing"><CaretRight /></el-icon>
+              {{ executing ? '运行中...' : '模拟运行' }}
+            </el-button>
+            <el-button 
+              size="small" 
+              @click="showExecutionHistory"
+              style="width: 100%; margin-top: 8px"
+            >
+              <el-icon><Clock /></el-icon>运行历史
+            </el-button>
+          </div>
         </div>
 
         <!-- Flow Canvas -->
@@ -99,6 +122,14 @@
             <Background />
             <Controls />
             <MiniMap />
+            
+            <!-- Execution State Overlay -->
+            <div v-if="executing" class="execution-overlay">
+              <div class="execution-overlay__status">
+                <el-icon class="is-loading" :size="24" color="#409eff"><Loading /></el-icon>
+                <span>正在执行: {{ currentNodeLabel }}</span>
+              </div>
+            </div>
           </VueFlow>
         </div>
       </div>
@@ -147,6 +178,37 @@
         <el-button type="primary" @click="confirmCreate">创建并打开编辑器</el-button>
       </template>
     </el-dialog>
+
+    <!-- Execution History Dialog -->
+    <el-dialog v-model="historyDialog" title="运行历史" width="700px">
+      <el-table :data="executionHistory" style="width: 100%" stripe>
+        <el-table-column prop="id" label="执行ID" width="180">
+          <template #default="{ row }">
+            <el-tooltip :content="row.id" placement="top">
+              <span>{{ row.id.slice(0, 12) }}...</span>
+            </el-tooltip>
+          </template>
+        </el-table-column>
+        <el-table-column prop="status" label="状态" width="90">
+          <template #default="{ row }">
+            <el-tag :type="statusType(row.status)" size="small" round>{{ statusLabel(row.status) }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column label="耗时" width="80">
+          <template #default="{ row }">{{ calcDuration(row) }}</template>
+        </el-table-column>
+        <el-table-column prop="started_at" label="开始时间" width="170">
+          <template #default="{ row }">{{ formatTime(row.started_at) }}</template>
+        </el-table-column>
+        <el-table-column prop="error_message" label="备注" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.error_message" class="error-text">{{ row.error_message.slice(0, 30) }}...</span>
+            <span v-else class="success-text">完成</span>
+          </template>
+        </el-table-column>
+      </el-table>
+      <el-empty v-if="!executionHistory.length" description="暂无运行记录" :image-size="60" />
+    </el-dialog>
   </div>
 </template>
 
@@ -158,16 +220,20 @@ import { Controls } from '@vue-flow/controls'
 import { MiniMap } from '@vue-flow/minimap'
 import type { Connection, Edge, Node } from '@vue-flow/core'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Connection as ConnectionIcon, Plus, CaretRight, Edit, Delete, Share, ArrowLeft, Check, Timer, Mouse, Bell, Cpu, Document, Filter, DataAnalysis } from '@element-plus/icons-vue'
+import { Connection as ConnectionIcon, Plus, CaretRight, Edit, Delete, Share, ArrowLeft, Check, Timer, Mouse, Bell, Cpu, Document, Filter, DataAnalysis, Clock, Loading } from '@element-plus/icons-vue'
 import api from '../api'
 
 const workflows = ref<any[]>([])
 const agents = ref<any[]>([])
 const createDialog = ref(false)
+const historyDialog = ref(false)
 const editingWorkflow = ref(false)
 const editingWorkflowData = ref<any>(null)
 const saving = ref(false)
+const executing = ref(false)
+const currentNodeLabel = ref('')
 const createForm = ref({ name: '', description: '', triggerType: 'manual', cron: '' })
+const executionHistory = ref<any[]>([])
 
 const flowNodes = ref<Node[]>([])
 const flowEdges = ref<Edge[]>([])
@@ -250,7 +316,17 @@ function openEditor(wf: any) {
       agentId: n.agentType || n.agentId || '',
       inputJson: JSON.stringify(n.config || n.input || {}, null, 2),
     },
-    style: { background: getNodeColor(n.type), color: '#fff', border: 'none', borderRadius: '8px', padding: '10px 16px', fontWeight: '600' },
+    style: {
+      background: getNodeColor(n.type),
+      color: '#fff',
+      border: 'none',
+      borderRadius: '10px',
+      padding: '12px 18px',
+      fontWeight: '600',
+      fontSize: '13px',
+      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+      transition: 'all 0.3s ease',
+    },
   }))
 
   let edges: Edge[] = []
@@ -260,7 +336,8 @@ function openEditor(wf: any) {
       source: e.from,
       target: e.to,
       animated: true,
-      style: { stroke: '#409eff' },
+      style: { stroke: '#409eff', strokeWidth: 2 },
+      markerEnd: { type: 'arrowclosed', color: '#409eff' },
     }))
   } catch { /* skip */ }
 
@@ -383,6 +460,96 @@ async function deleteWorkflow(wf: any) {
     ElMessage.success('已删除')
     await fetchWorkflows()
   } catch (e) { /* cancelled */ }
+}
+
+// Execution visualization
+async function runWorkflowVisualization() {
+  if (!editingWorkflowData.value) return
+  executing.value = true
+  
+  try {
+    const nodes = flowNodes.value as any[]
+    for (let i = 0; i < nodes.length; i++) {
+      const node = nodes[i]
+      currentNodeLabel.value = node.label || node.data?.label || '节点'
+      
+      // Update node style to running
+      node.style = { ...node.style, boxShadow: '0 0 0 3px rgba(64, 158, 255, 0.3)', animation: 'pulse 1s infinite' }
+      flowNodes.value = [...flowNodes.value]
+      
+      // Simulate execution delay
+      await new Promise(r => setTimeout(r, 800 + Math.random() * 600))
+      
+      // Mark as completed
+      const isSuccess = Math.random() > 0.1
+      node.style = {
+        ...node.style,
+        boxShadow: isSuccess ? '0 0 0 3px rgba(103, 194, 58, 0.3)' : '0 0 0 3px rgba(245, 108, 108, 0.3)',
+        animation: 'none',
+      }
+      node.data = { ...node.data, execStatus: isSuccess ? 'success' : 'failed' }
+      flowNodes.value = [...flowNodes.value]
+      
+      if (!isSuccess) {
+        ElMessage.warning(`节点 "${node.label}" 执行失败`)
+        break
+      }
+    }
+    
+    ElMessage.success('工作流模拟执行完成')
+  } finally {
+    executing.value = false
+    currentNodeLabel.value = ''
+    // Reset styles after 2 seconds
+    setTimeout(() => resetNodeStyles(), 2000)
+  }
+}
+
+function resetNodeStyles() {
+  flowNodes.value = flowNodes.value.map((n: any) => ({
+    ...n,
+    style: { ...n.style, boxShadow: 'none', animation: 'none' },
+    data: { ...n.data, execStatus: undefined },
+  }))
+}
+
+function showExecutionHistory() {
+  historyDialog.value = true
+  fetchExecutionHistory()
+}
+
+async function fetchExecutionHistory() {
+  if (!editingWorkflowData.value) return
+  try {
+    executionHistory.value = await api.get(`/tasks`, {
+      params: { workflow_id: editingWorkflowData.value.id, limit: 20 }
+    })
+  } catch { executionHistory.value = [] }
+}
+
+function statusType(status: string): string {
+  const map: Record<string, string> = { success: 'success', failed: 'danger', running: 'warning', pending: 'info' }
+  return map[status] || 'info'
+}
+
+function statusLabel(status: string): string {
+  const map: Record<string, string> = { success: '成功', failed: '失败', running: '运行中', pending: '等待中' }
+  return map[status] || status
+}
+
+function calcDuration(task: any): string {
+  if (!task.started_at) return '-'
+  const start = new Date(task.started_at).getTime()
+  const end = task.completed_at ? new Date(task.completed_at).getTime() : Date.now()
+  const ms = end - start
+  if (ms < 1000) return `${ms}ms`
+  return `${(ms / 1000).toFixed(1)}s`
+}
+
+function formatTime(dateStr: string): string {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 </script>
 
@@ -569,6 +736,45 @@ async function deleteWorkflow(wf: any) {
   cursor: grabbing;
 }
 
+/* Execution Controls */
+.execution-controls {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.execution-controls .el-divider {
+  margin: 0 0 12px;
+}
+
+/* Execution Overlay */
+.execution-overlay {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 100;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 12px 24px;
+  border-radius: 24px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(8px);
+}
+
+.execution-overlay__status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #303133;
+}
+
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+
 .editor-canvas {
   flex: 1;
   background: #fff;
@@ -578,25 +784,168 @@ async function deleteWorkflow(wf: any) {
 }
 
 @media (max-width: 768px) {
+  .workflow-card {
+    padding: 16px;
+    margin-bottom: 14px;
+    border-radius: var(--radius-md);
+  }
+  
+  .workflow-card__icon {
+    width: 40px;
+    height: 40px;
+  }
+  
+  .workflow-card__name {
+    font-size: 15px;
+  }
+  
+  .workflow-card__desc {
+    font-size: 12px;
+    margin-bottom: 10px;
+  }
+  
+  .workflow-card__actions {
+    flex-wrap: wrap;
+  }
+  
+  .workflow-card__actions .el-button {
+    flex: 1;
+    min-width: 0;
+  }
+  
   .card-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
+    gap: 10px;
   }
-
+  
+  .card-header .el-button {
+    width: 100%;
+  }
+  
+  .editor-header {
+    padding: 10px 14px;
+    margin-bottom: 12px;
+    border-radius: var(--radius-md);
+  }
+  
+  .editor-header__left {
+    gap: 10px;
+  }
+  
+  .editor-header__left h2 {
+    font-size: 16px;
+  }
+  
   .editor-body {
     flex-direction: column;
-    height: calc(100vh - 200px);
+    height: calc(100vh - 180px);
   }
-
+  
   .editor-palette {
     width: 100%;
     height: auto;
-    max-height: 150px;
+    max-height: 140px;
+    padding: 12px;
+    border-radius: var(--radius-md);
   }
-
+  
+  .palette-title {
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+  
+  .palette-group__title {
+    font-size: 11px;
+    margin: 8px 0 6px;
+  }
+  
+  .palette-item {
+    padding: 8px 10px;
+    font-size: 12px;
+    margin-bottom: 4px;
+  }
+  
+  .palette-item .el-icon {
+    font-size: 16px;
+  }
+  
+  .execution-controls {
+    margin-top: 14px;
+    padding-top: 12px;
+  }
+  
+  .execution-controls .el-divider {
+    margin: 0 0 10px;
+  }
+  
   .editor-canvas {
-    min-height: 400px;
+    min-height: 350px;
+    border-radius: var(--radius-md);
+  }
+  
+  .execution-overlay {
+    bottom: 12px;
+    padding: 10px 18px;
+  }
+  
+  .execution-overlay__status {
+    font-size: 12px;
+    gap: 8px;
+  }
+}
+
+@media (max-width: 480px) {
+  .workflow-card {
+    padding: 14px;
+    margin-bottom: 12px;
+  }
+  
+  .workflow-card__header {
+    margin-bottom: 10px;
+  }
+  
+  .workflow-card__icon {
+    width: 36px;
+    height: 36px;
+  }
+  
+  .workflow-card__name {
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+  
+  .workflow-card__desc {
+    font-size: 11px;
+    margin-bottom: 8px;
+    -webkit-line-clamp: 1;
+  }
+  
+  .workflow-card__meta {
+    margin-bottom: 12px;
+    gap: 8px;
+  }
+  
+  .editor-header {
+    padding: 8px 12px;
+  }
+  
+  .editor-header__left h2 {
+    font-size: 15px;
+  }
+  
+  .editor-palette {
+    max-height: 120px;
+    padding: 10px;
+  }
+  
+  .palette-item {
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+  
+  .editor-canvas {
+    min-height: 300px;
   }
 }
 </style>

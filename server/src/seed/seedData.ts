@@ -290,6 +290,55 @@ function seedWorkflows() {
   logger.info(`Seeded ${count} workflows`);
 }
 
+function seedLeadFollowUps() {
+  const leads = db.prepare('SELECT id, status, created_at FROM leads').all() as any[];
+  const followUpStmt = db.prepare(`
+    INSERT INTO lead_follow_ups (id, lead_id, type, note, created_at)
+    VALUES (?, ?, ?, ?, ?)
+  `);
+
+  const FOLLOW_UP_TYPES = ['call', 'visit', 'message', 'other'];
+  const FOLLOW_UP_NOTES = [
+    '首次电话联系，客户表示有兴趣了解产品详情',
+    '发送了产品资料包，约定下周回访',
+    '客户已对比三家，价格是关键决策因素',
+    '拜访客户公司，了解到他们有明确的采购计划',
+    '微信沟通，客户对AI功能特别关注',
+    '客户提出定制化需求，需技术团队评估',
+    '电话未接通，已留言，待再次联系',
+    '客户反馈预算紧张，申请了特价方案',
+    '线上会议演示产品，客户满意度较高',
+    '客户已签约竞争对手，标记为潜在客户',
+    '发送了试用账号，客户正在体验中',
+    '跟进合同细节，预计本周内可以签约',
+  ];
+
+  let count = 0;
+  for (const lead of leads) {
+    const followUpCount = lead.status === 'converted' ? randomInt(3, 5) :
+                          lead.status === 'qualified' ? randomInt(2, 4) :
+                          lead.status === 'contacted' ? randomInt(1, 3) :
+                          Math.random() > 0.6 ? randomInt(1, 2) : 0;
+
+    for (let i = 0; i < followUpCount; i++) {
+      const daysOffset = Math.floor((followUpCount - i) * (25 / followUpCount));
+      const baseDate = new Date();
+      baseDate.setDate(baseDate.getDate() - daysOffset);
+      const createdAt = baseDate.toISOString().replace('T', ' ').slice(0, 19);
+      followUpStmt.run(
+        `fu_${lead.id.slice(5)}_${i}`,
+        lead.id,
+        randomChoice(FOLLOW_UP_TYPES),
+        randomChoice(FOLLOW_UP_NOTES),
+        createdAt
+      );
+      count++;
+    }
+  }
+
+  logger.info(`Seeded ${count} lead follow-up records`);
+}
+
 function updateAgentStats() {
   const agents = db.prepare('SELECT id FROM agents').all() as any[];
 
@@ -326,6 +375,7 @@ export function seedAllData() {
   seedTasks();
   seedContents();
   seedLeads();
+  seedLeadFollowUps();
   seedWorkflows();
   updateAgentStats();
 

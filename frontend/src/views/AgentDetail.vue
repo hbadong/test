@@ -80,6 +80,7 @@
               </div>
               <el-radio-group v-model="chartPeriod" size="small" @change="fetchTasks">
                 <el-radio-button label="7">7天</el-radio-button>
+                <el-radio-button label="15">15天</el-radio-button>
                 <el-radio-button label="30">30天</el-radio-button>
               </el-radio-group>
             </div>
@@ -94,6 +95,7 @@
               <div class="card-header__left">
                 <el-icon :size="18" color="#e6a23c"><Clock /></el-icon>
                 <span>任务日志</span>
+                <el-tag size="small" round>{{ filteredTasks.length }} 条</el-tag>
               </div>
               <div class="card-header__filters">
                 <el-select v-model="taskFilter" size="small" placeholder="状态过滤" style="width: 100px">
@@ -106,9 +108,11 @@
             </div>
           </template>
           <el-table :data="filteredTasks" style="width: 100%" stripe>
-            <el-table-column prop="id" label="任务ID" width="280">
+            <el-table-column prop="id" label="任务ID" width="200">
               <template #default="{ row }">
-                <span class="task-id">{{ row.id.slice(0, 8) }}...</span>
+                <el-tooltip :content="row.id" placement="top">
+                  <span class="task-id">{{ row.id.slice(0, 12) }}...</span>
+                </el-tooltip>
               </template>
             </el-table-column>
             <el-table-column prop="status" label="状态" width="90">
@@ -123,11 +127,18 @@
                 {{ calcDuration(row) }}
               </template>
             </el-table-column>
-            <el-table-column prop="started_at" label="开始时间" width="180" />
+            <el-table-column prop="started_at" label="开始时间" width="170">
+              <template #default="{ row }">{{ formatTime(row.started_at) }}</template>
+            </el-table-column>
             <el-table-column prop="error_message" label="备注/错误" show-overflow-tooltip>
               <template #default="{ row }">
-                <span v-if="row.error_message" class="error-text">{{ row.error_message }}</span>
+                <span v-if="row.error_message" class="error-text">{{ row.error_message.slice(0, 30) }}...</span>
                 <span v-else class="success-text">完成</span>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="70" fixed="right">
+              <template #default="{ row }">
+                <el-button size="small" link type="primary" @click="viewTaskOutput(row)">详情</el-button>
               </template>
             </el-table-column>
           </el-table>
@@ -204,8 +215,40 @@
           </template>
           <pre class="result-output">{{ JSON.stringify(lastResult, null, 2) }}</pre>
         </el-card>
+
+        <!-- Auto-refresh Indicator -->
+        <el-card class="detail-card" style="margin-top: 20px" v-if="agent?.status === 'active'">
+          <div class="auto-refresh">
+            <el-icon class="auto-refresh__icon" :size="16" color="#67c23a"><Refresh /></el-icon>
+            <span>实时监控中</span>
+            <span class="auto-refresh__timer">{{ autoRefreshCountdown }}s</span>
+          </div>
+        </el-card>
       </el-col>
     </el-row>
+
+    <!-- Task Output Dialog -->
+    <el-dialog v-model="taskOutputDialog" title="任务详情" width="700px">
+      <div v-if="selectedTask" class="task-output">
+        <el-descriptions :column="2" border class="task-output__meta">
+          <el-descriptions-item label="状态">
+            <el-tag :type="statusType(selectedTask.status)" size="small" round>{{ statusLabel(selectedTask.status) }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="耗时">{{ calcDuration(selectedTask) }}</el-descriptions-item>
+          <el-descriptions-item label="开始时间">{{ formatTime(selectedTask.started_at) }}</el-descriptions-item>
+          <el-descriptions-item label="完成时间">{{ selectedTask.completed_at ? formatTime(selectedTask.completed_at) : '-' }}</el-descriptions-item>
+        </el-descriptions>
+        
+        <h4 class="task-output__title">输入参数</h4>
+        <pre class="task-output__json">{{ formatJson(selectedTask.input) }}</pre>
+        
+        <h4 class="task-output__title" v-if="selectedTask.output">输出结果</h4>
+        <pre class="task-output__json task-output__json--success" v-if="selectedTask.output">{{ formatJson(selectedTask.output) }}</pre>
+        
+        <h4 class="task-output__title" v-if="selectedTask.error_message">错误信息</h4>
+        <pre class="task-output__json task-output__json--error" v-if="selectedTask.error_message">{{ selectedTask.error_message }}</pre>
+      </div>
+    </el-dialog>
   </div>
 </template>
 
@@ -213,7 +256,7 @@
 import { ref, computed, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowLeft, Monitor, TrendCharts, Clock, Setting, EditPen, CaretRight, SuccessFilled } from '@element-plus/icons-vue'
+import { ArrowLeft, Monitor, TrendCharts, Clock, Setting, EditPen, CaretRight, SuccessFilled, Refresh } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import api from '../api'
 
@@ -230,6 +273,15 @@ const chartPeriod = ref('7')
 const lastResult = ref<any>(null)
 const chartRef = ref<HTMLElement>()
 let chartInstance: echarts.ECharts | null = null
+
+// Auto-refresh
+const autoRefreshCountdown = ref(10)
+let autoRefreshTimer: ReturnType<typeof setInterval> | null = null
+let countdownTimer: ReturnType<typeof setInterval> | null = null
+
+// Task output dialog
+const taskOutputDialog = ref(false)
+const selectedTask = ref<any>(null)
 
 const agentIcons: Record<string, any> = {
   trend: 'TrendCharts', create: 'EditPen', avatar: 'VideoCamera', video: 'VideoCamera',
@@ -281,12 +333,49 @@ onMounted(async () => {
   await fetchTasks()
   initChart()
   window.addEventListener('resize', handleResize)
+  startAutoRefresh()
 })
 
 onBeforeUnmount(() => {
   window.removeEventListener('resize', handleResize)
   chartInstance?.dispose()
+  stopAutoRefresh()
 })
+
+function startAutoRefresh() {
+  stopAutoRefresh()
+  autoRefreshCountdown.value = 10
+  countdownTimer = setInterval(() => {
+    autoRefreshCountdown.value--
+    if (autoRefreshCountdown.value <= 0) {
+      autoRefreshCountdown.value = 10
+      if (agent.value?.status === 'active') {
+        fetchAgent()
+        fetchTasks()
+      }
+    }
+  }, 1000)
+}
+
+function stopAutoRefresh() {
+  if (countdownTimer) clearInterval(countdownTimer)
+  if (autoRefreshTimer) clearInterval(autoRefreshTimer)
+}
+
+function formatTime(dateStr: string): string {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+}
+
+function formatJson(str: string): string {
+  try { return JSON.stringify(JSON.parse(str), null, 2) } catch { return str || '' }
+}
+
+function viewTaskOutput(task: any) {
+  selectedTask.value = task
+  taskOutputDialog.value = true
+}
 
 watch(() => route.params.id, () => {
   fetchAgent()
@@ -404,18 +493,32 @@ function initChart() {
   if (!chartRef.value) return
   chartInstance = echarts.init(chartRef.value)
   chartInstance.setOption({
-    tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.96)', borderColor: '#ebeef5', textStyle: { color: '#303133' } },
-    grid: { left: '3%', right: '4%', bottom: '8%', top: '8%', containLabel: true },
+    tooltip: { trigger: 'axis', backgroundColor: 'rgba(255,255,255,0.96)', borderColor: '#ebeef5', textStyle: { color: '#303133' },
+      formatter: (params: any[]) => {
+        let html = `<div style="font-weight:600;margin-bottom:6px">${params[0]?.axisValue}</div>`
+        params.forEach(p => {
+          html += `<div style="display:flex;align-items:center;gap:6px;margin:4px 0">
+            <span style="width:8px;height:8px;border-radius:50%;background:${p.color}"></span>
+            <span>${p.seriesName}: <b>${p.value}</b></span>
+          </div>`
+        })
+        return html
+      }
+    },
+    legend: { data: ['成功', '失败'], bottom: 0, itemWidth: 12, itemHeight: 8, textStyle: { fontSize: 12 } },
+    grid: { left: '3%', right: '4%', bottom: '14%', top: '8%', containLabel: true },
     xAxis: { type: 'category', data: [], axisLine: { lineStyle: { color: '#ebeef5' } }, axisTick: { show: false }, axisLabel: { color: '#909399', fontSize: 11 } },
     yAxis: { type: 'value', splitLine: { lineStyle: { color: '#f2f3f5', type: 'dashed' } }, axisLabel: { color: '#909399', fontSize: 11 } },
-    series: [{ name: '任务', type: 'bar', data: [], itemStyle: { color: { type: 'linear', x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: '#409eff' }, { offset: 1, color: '#79bbff' }] } }, barWidth: '60%', borderRadius: [4, 4, 0, 0] }],
+    series: [
+      { name: '成功', type: 'bar', stack: 'total', data: [], itemStyle: { color: '#67c23a' }, barWidth: '60%', borderRadius: [0, 0, 0, 0] },
+      { name: '失败', type: 'bar', stack: 'total', data: [], itemStyle: { color: '#f56c6c' }, borderRadius: [4, 4, 0, 0] },
+    ],
   })
 }
 
 function updateChart() {
-  if (!chartInstance || !tasks.value.length) return
+  if (!chartInstance) return
   
-  // Group tasks by date
   const dateMap: Record<string, { total: number; success: number; fail: number }> = {}
   const now = new Date()
   const days = parseInt(chartPeriod.value)
@@ -439,7 +542,10 @@ function updateChart() {
   const dates = Object.keys(dateMap)
   chartInstance.setOption({
     xAxis: { data: dates.map(d => d.slice(5)) },
-    series: [{ data: dates.map(d => dateMap[d].total) }],
+    series: [
+      { data: dates.map(d => dateMap[d].success) },
+      { data: dates.map(d => dateMap[d].fail) },
+    ],
   })
 }
 </script>
@@ -611,24 +717,233 @@ function updateChart() {
   margin: 0;
 }
 
+/* Auto Refresh */
+.auto-refresh {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #67c23a;
+  padding: 8px 0;
+}
+
+.auto-refresh__icon {
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.auto-refresh__timer {
+  margin-left: auto;
+  font-weight: 600;
+  font-family: monospace;
+}
+
+/* Task Output Dialog */
+.task-output__meta {
+  margin-bottom: 20px;
+}
+
+.task-output__title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #303133;
+  margin: 16px 0 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.task-output__json {
+  background: #f5f7fa;
+  padding: 16px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-family: 'SF Mono', 'Menlo', monospace;
+  line-height: 1.6;
+  max-height: 300px;
+  overflow: auto;
+  color: #303133;
+  margin: 0;
+}
+
+.task-output__json--success {
+  background: #f0f9eb;
+  border: 1px solid #e1f3d8;
+}
+
+.task-output__json--error {
+  background: #fef0f0;
+  border: 1px solid #fde2e2;
+  color: #f56c6c;
+}
+
 @media (max-width: 768px) {
+  .detail-card {
+    margin-bottom: 12px;
+    border-radius: var(--radius-md);
+  }
+  
+  .detail-card :deep(.el-card__header) {
+    padding: 14px 16px;
+  }
+  
+  .detail-card :deep(.el-card__body) {
+    padding: 16px;
+  }
+  
+  .detail-header {
+    padding: 16px;
+    border-radius: var(--radius-md);
+    margin-bottom: 12px;
+  }
+  
   .detail-header__main {
     flex-direction: column;
     align-items: flex-start;
+    gap: 14px;
+  }
+  
+  .detail-header__info {
+    width: 100%;
+  }
+  
+  .detail-header__title {
+    font-size: 18px;
   }
   
   .detail-header__actions {
     margin-left: 0;
     width: 100%;
     justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .detail-header__actions .el-button {
+    flex: 1;
+    min-width: 80px;
+  }
+  
+  .detail-stats {
+    gap: 8px;
+    margin-top: 12px;
   }
   
   .mini-stat {
-    margin-bottom: 12px;
+    flex: 1;
+    min-width: 0;
+    margin-bottom: 0;
+    padding: 10px 8px;
+  }
+  
+  .mini-stat__value {
+    font-size: 18px;
+  }
+  
+  .mini-stat__label {
+    font-size: 11px;
   }
   
   .chart-container {
     height: 200px;
+  }
+  
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .card-header__filters {
+    width: 100%;
+  }
+  
+  .task-id {
+    font-size: 12px;
+  }
+  
+  .el-table {
+    font-size: 13px;
+  }
+  
+  .el-table :deep(.el-table__cell) {
+    padding: 10px 8px;
+  }
+  
+  .auto-refresh {
+    font-size: 12px;
+    padding: 6px 0;
+  }
+  
+  .auto-refresh__icon {
+    font-size: 14px;
+  }
+  
+  .result-output {
+    padding: 12px;
+    font-size: 11px;
+    max-height: 300px;
+  }
+  
+  .task-output__json {
+    padding: 12px;
+    font-size: 11px;
+    max-height: 250px;
+  }
+}
+
+@media (max-width: 480px) {
+  .detail-header {
+    padding: 14px;
+  }
+  
+  .detail-header__title {
+    font-size: 16px;
+  }
+  
+  .detail-header__type {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+  
+  .detail-stats {
+    gap: 6px;
+  }
+  
+  .mini-stat {
+    padding: 8px 6px;
+  }
+  
+  .mini-stat__value {
+    font-size: 16px;
+  }
+  
+  .mini-stat__label {
+    font-size: 10px;
+  }
+  
+  .chart-container {
+    height: 180px;
+  }
+  
+  .detail-card :deep(.el-card__header) {
+    padding: 12px 14px;
+  }
+  
+  .detail-card :deep(.el-card__body) {
+    padding: 12px;
+  }
+  
+  .el-table :deep(.el-table__cell) {
+    padding: 8px 6px;
+  }
+  
+  .el-tag {
+    padding: 0 6px;
+    font-size: 11px;
   }
 }
 </style>

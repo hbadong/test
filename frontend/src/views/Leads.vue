@@ -188,9 +188,48 @@
             <el-tag :type="statusColorMap[currentLead.status]" size="small">{{ statusLabelMap[currentLead.status] }}</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="评分">{{ calculateScore(currentLead) }}分</el-descriptions-item>
-          <el-descriptions-item label="备注">{{ currentLead.notes || '暂无' }}</el-descriptions-item>
           <el-descriptions-item label="创建时间">{{ formatTime(currentLead.created_at) }}</el-descriptions-item>
         </el-descriptions>
+        
+        <!-- Follow-up Timeline -->
+        <div class="follow-up-section">
+          <h4 class="follow-up__title">跟进记录</h4>
+          <el-timeline class="follow-up__timeline">
+            <el-timeline-item
+              v-for="record in followUpRecords"
+              :key="record.id"
+              :timestamp="formatTime(record.created_at)"
+              placement="top"
+              :color="record.type === 'call' ? '#409eff' : record.type === 'visit' ? '#67c23a' : '#e6a23c'"
+            >
+              <div class="follow-up__record">
+                <el-tag size="small" round>{{ followUpTypeMap[record.type] || record.type }}</el-tag>
+                <p class="follow-up__note">{{ record.note }}</p>
+              </div>
+            </el-timeline-item>
+            <el-empty v-if="!followUpRecords.length" description="暂无跟进记录" :image-size="40" />
+          </el-timeline>
+        </div>
+
+        <!-- Add Follow-up -->
+        <div class="follow-up-add">
+          <el-input
+            v-model="newFollowUpNote"
+            type="textarea"
+            :rows="2"
+            placeholder="输入跟进记录..."
+          />
+          <div class="follow-up-add__actions">
+            <el-select v-model="newFollowUpType" size="small" style="width: 100px">
+              <el-option label="电话" value="call" />
+              <el-option label="拜访" value="visit" />
+              <el-option label="消息" value="message" />
+              <el-option label="其他" value="other" />
+            </el-select>
+            <el-button type="primary" size="small" @click="addFollowUp">添加记录</el-button>
+          </div>
+        </div>
+
         <div class="lead-detail__actions">
           <el-button type="primary" @click="nextStatus(currentLead)" style="width: 100%">推进到下一阶段</el-button>
         </div>
@@ -223,7 +262,12 @@ const detailDrawer = ref(false)
 const currentLead = ref<any>(null)
 const selectedLeads = ref<any[]>([])
 
+const followUpRecords = ref<any[]>([])
+const newFollowUpNote = ref('')
+const newFollowUpType = ref('call')
+
 const sourceMap: Record<string, string> = { prospect: 'AI拓客', 'map-prospect': '地图拓客', call: 'AI电销', live: 'AI直播', wechat: '个企微', import: '导入' }
+const followUpTypeMap: Record<string, string> = { call: '电话', visit: '拜访', message: '消息', other: '其他' }
 const statusLabelMap: Record<string, string> = { new: '新线索', contacted: '已联系', qualified: '高意向', converted: '已成交', lost: '已流失' }
 const statusColorMap: Record<string, any> = { new: '', contacted: 'warning', qualified: 'success', converted: 'info', lost: 'danger' }
 const intentLabelMap: Record<string, string> = { high: '高', medium: '中', low: '低', unknown: '未知' }
@@ -307,6 +351,26 @@ function onSelectionChange(selection: any[]) {
 function viewLead(lead: any) {
   currentLead.value = lead
   detailDrawer.value = true
+  fetchFollowUps(lead.id)
+}
+
+async function fetchFollowUps(leadId: string) {
+  try {
+    followUpRecords.value = await api.get(`/leads/${leadId}/follow-ups`)
+  } catch { followUpRecords.value = [] }
+}
+
+async function addFollowUp() {
+  if (!currentLead.value || !newFollowUpNote.value.trim()) return
+  try {
+    await api.post(`/leads/${currentLead.value.id}/follow-ups`, {
+      type: newFollowUpType.value,
+      note: newFollowUpNote.value,
+    })
+    ElMessage.success('跟进记录已添加')
+    newFollowUpNote.value = ''
+    await fetchFollowUps(currentLead.value.id)
+  } catch { ElMessage.error('添加失败') }
 }
 
 async function nextStatus(lead: any) {
@@ -510,12 +574,237 @@ async function batchDelete() {
 .lead-detail__info p { margin: 0; color: #909399; }
 .lead-detail__actions { margin-top: 20px; }
 
+/* Follow-up Section */
+.follow-up-section { margin-top: 24px; }
+.follow-up__title { font-size: 14px; font-weight: 600; color: #303133; margin: 0 0 16px; }
+.follow-up__timeline { padding-left: 8px; }
+.follow-up__record { display: flex; flex-direction: column; gap: 6px; }
+.follow-up__note { margin: 0; font-size: 13px; color: #606266; line-height: 1.6; }
+
+.follow-up-add { margin-top: 16px; }
+.follow-up-add__actions { display: flex; gap: 8px; margin-top: 8px; align-items: center; }
+
 @media (max-width: 768px) {
-  .filter-bar { flex-direction: column; align-items: flex-start; }
-  .filter-bar__right { width: 100%; }
-  .filter-bar__right .el-select { flex: 1; }
+  .filter-card {
+    margin-bottom: 12px;
+    border-radius: var(--radius-md);
+  }
   
-  .kanban-view { flex-direction: column; }
-  .kanban-column { min-width: 100%; }
+  .filter-card :deep(.el-card__body) {
+    padding: 10px 14px;
+  }
+  
+  .filter-bar {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .filter-bar__right {
+    width: 100%;
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .filter-bar__right .el-select {
+    width: 100% !important;
+  }
+  
+  .batch-bar {
+    flex-wrap: wrap;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+  
+  .batch-bar__count {
+    width: 100%;
+    margin-bottom: 4px;
+  }
+  
+  .batch-bar .el-button {
+    flex: 1;
+    min-width: 0;
+  }
+  
+  .leads-table {
+    font-size: 13px;
+  }
+  
+  .leads-table :deep(.el-table__cell) {
+    padding: 10px 8px;
+  }
+  
+  .lead-name {
+    gap: 8px;
+  }
+  
+  .lead-avatar {
+    width: 28px;
+    height: 28px;
+    font-size: 11px;
+  }
+  
+  .lead-name__text {
+    font-size: 13px;
+  }
+  
+  .lead-name__company {
+    font-size: 11px;
+  }
+  
+  .kanban-view {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .kanban-column {
+    min-width: 100%;
+    border-radius: var(--radius-md);
+  }
+  
+  .kanban-column__header {
+    padding: 10px 14px;
+  }
+  
+  .kanban-column__title {
+    font-size: 13px;
+  }
+  
+  .kanban-column__body {
+    padding: 10px;
+    gap: 8px;
+  }
+  
+  .kanban-card {
+    padding: 12px;
+    border-radius: var(--radius-sm);
+  }
+  
+  .kanban-card__avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+  
+  .kanban-card__name {
+    font-size: 13px;
+  }
+  
+  .kanban-card__company {
+    font-size: 11px;
+  }
+  
+  .kanban-card__meta {
+    margin-bottom: 6px;
+  }
+  
+  .kanban-card__contact {
+    font-size: 11px;
+    margin-bottom: 6px;
+  }
+  
+  .kanban-card__footer {
+    font-size: 10px;
+    padding-top: 6px;
+  }
+  
+  /* Lead Detail Drawer */
+  .lead-detail__header {
+    gap: 12px;
+    margin-bottom: 16px;
+    padding-bottom: 12px;
+  }
+  
+  .lead-detail__avatar {
+    width: 48px;
+    height: 48px;
+    font-size: 18px;
+  }
+  
+  .lead-detail__info h3 {
+    font-size: 16px;
+  }
+  
+  .lead-detail__info p {
+    font-size: 12px;
+  }
+  
+  .el-descriptions :deep(.el-descriptions__label) {
+    font-size: 12px;
+    padding: 12px 8px;
+  }
+  
+  .el-descriptions :deep(.el-descriptions__content) {
+    font-size: 12px;
+    padding: 12px 8px;
+  }
+  
+  /* Follow-up Section */
+  .follow-up-section {
+    margin-top: 20px;
+  }
+  
+  .follow-up__title {
+    font-size: 13px;
+    margin-bottom: 12px;
+  }
+  
+  .follow-up__timeline {
+    padding-left: 4px;
+  }
+  
+  .follow-up__record {
+    gap: 4px;
+  }
+  
+  .follow-up__note {
+    font-size: 12px;
+  }
+  
+  .follow-up-add {
+    margin-top: 12px;
+  }
+  
+  .follow-up-add__actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+  
+  .follow-up-add__actions .el-select,
+  .follow-up-add__actions .el-button {
+    width: 100% !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .stats-row {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  
+  .stat-mini {
+    padding: 12px;
+    border-radius: var(--radius-sm);
+  }
+  
+  .stat-mini__value {
+    font-size: 22px;
+  }
+  
+  .stat-mini__label {
+    font-size: 11px;
+  }
+  
+  .leads-table :deep(.el-table__cell) {
+    padding: 8px 6px;
+  }
+  
+  .kanban-card {
+    padding: 10px;
+  }
+  
+  .el-drawer__body {
+    padding: 16px;
+  }
 }
 </style>

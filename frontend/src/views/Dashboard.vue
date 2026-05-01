@@ -79,10 +79,15 @@
                 <el-icon :size="18" color="#409eff"><TrendCharts /></el-icon>
                 <span>30天趋势</span>
               </div>
-              <el-radio-group v-model="trendPeriod" size="small" @change="onPeriodChange">
-                <el-radio-button label="7">7天</el-radio-button>
-                <el-radio-button label="30">30天</el-radio-button>
-              </el-radio-group>
+              <div class="card-header__actions">
+                <el-button size="small" @click="exportReport">
+                  <el-icon><Download /></el-icon>导出报告
+                </el-button>
+                <el-radio-group v-model="trendPeriod" size="small" @change="onPeriodChange">
+                  <el-radio-button label="7">7天</el-radio-button>
+                  <el-radio-button label="30">30天</el-radio-button>
+                </el-radio-group>
+              </div>
             </div>
           </template>
           <div ref="trendChartRef" class="chart-container chart-container--trend"></div>
@@ -248,7 +253,7 @@
 <script setup lang="ts">
 import { ref, onMounted, watch, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
-import { Avatar, Document, UserFilled, Connection, TrendCharts, Monitor, Clock, PieChart, Histogram, Top, Bottom } from '@element-plus/icons-vue'
+import { Avatar, Document, UserFilled, Connection, TrendCharts, Monitor, Clock, PieChart, Histogram, Top, Bottom, Download } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import api from '../api'
 
@@ -408,6 +413,70 @@ function formatTime(dateStr: string): string {
 
 function goAgentDetail(agent: any) {
   router.push({ path: '/agents', query: { id: agent.id } })
+}
+
+// Export report
+async function exportReport() {
+  try {
+    ElMessage.info('正在生成报告...')
+    
+    // Fetch all data for export
+    const [overview, agentsRes, leadsRes] = await Promise.all([
+      api.get('/dashboard/overview'),
+      api.get('/agents'),
+      api.get('/leads', { params: { limit: 100 } }),
+    ])
+    
+    const overviewData = (overview as any).data
+    const agents = agentsRes.data
+    const leads = leadsRes
+    
+    // Build CSV content
+    const csvParts: string[] = ['"AI智能体系统 - 数据导出报告"']
+    csvParts.push(`"导出时间:","${new Date().toLocaleString('zh-CN')}"`)
+    csvParts.push('')
+    
+    // Summary
+    csvParts.push('"=== 概览 ==="')
+    const totalRuns = agents.reduce((s: number, a: any) => s + (a.total_runs || 0), 0)
+    const totalSuccess = agents.reduce((s: number, a: any) => s + (a.success_count || 0), 0)
+    csvParts.push(`"AI员工数:","11"`)
+    csvParts.push(`"总任务数:","${totalRuns}"`)
+    csvParts.push(`"成功数:","${totalSuccess}"`)
+    csvParts.push(`"成功率:","${totalRuns > 0 ? Math.round((totalSuccess / totalRuns) * 100) : 0}%"`)
+    csvParts.push(`"内容总数:","${overviewData.contents?.reduce((s: number, c: any) => s + c.count, 0) || 0}"`)
+    csvParts.push(`"线索总数:","${overviewData.leads?.reduce((s: number, l: any) => s + l.count, 0) || 0}"`)
+    csvParts.push('')
+    
+    // Agent status
+    csvParts.push('"=== AI员工状态 ==="')
+    csvParts.push('"名称","类型","状态","总运行","成功","失败"')
+    agents.forEach((a: any) => {
+      csvParts.push(`"${a.name}","${agentTypeMap[a.type] || a.type}","${a.status === 'active' ? '运行中' : '已停止'}","${a.total_runs || 0}","${a.success_count || 0}","${a.fail_count || 0}"`)
+    })
+    csvParts.push('')
+    
+    // Recent leads
+    csvParts.push('"=== 线索列表 (最近100条) ==="')
+    csvParts.push('"名称","公司","电话","来源","意向","状态","创建时间"')
+    leads.forEach((l: any) => {
+      csvParts.push(`"${l.name || ''}","${l.company || ''}","${l.phone || ''}","${l.source}","${l.intent_level}","${l.status}","${l.created_at || ''}"`)
+    })
+    
+    const csvContent = '\uFEFF' + csvParts.join('\n')
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `AI员工系统报告_${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+    
+    ElMessage.success('报告已导出')
+  } catch (e) {
+    console.error(e)
+    ElMessage.error('导出失败')
+  }
 }
 
 // Charts
@@ -688,6 +757,12 @@ function updateSourceChart(agents: any[]) {
   font-size: 15px;
 }
 
+.card-header__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .chart-container {
   width: 100%;
 }
@@ -885,24 +960,29 @@ function updateSourceChart(agents: any[]) {
 @media (max-width: 768px) {
   .stats-row {
     margin-bottom: 12px;
+    gap: 10px;
   }
   
   .stat-card {
-    padding: 16px;
-    margin-bottom: 10px;
+    padding: 14px;
+    margin-bottom: 0;
+    border-radius: var(--radius-md);
   }
   
   .stat-card__icon {
-    width: 44px;
-    height: 44px;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius-sm);
   }
   
   .stat-card__value {
     font-size: 20px;
+    font-weight: 800;
   }
   
   .stat-card__label {
     font-size: 12px;
+    margin-top: 1px;
   }
   
   .stat-card__trend {
@@ -913,20 +993,37 @@ function updateSourceChart(agents: any[]) {
     margin-bottom: 12px;
   }
   
+  .dashboard-card {
+    margin-bottom: 12px;
+    border-radius: var(--radius-md);
+  }
+  
+  .dashboard-card :deep(.el-card__header) {
+    padding: 14px 16px;
+  }
+  
+  .dashboard-card :deep(.el-card__body) {
+    padding: 16px;
+  }
+  
   .chart-container--trend {
-    height: 200px;
+    height: 220px;
   }
   
   .chart-container--success {
-    height: 140px;
+    height: 160px;
   }
   
   .chart-container--source {
-    height: 180px;
+    height: 200px;
   }
   
   .agent-status-list {
-    max-height: 240px;
+    max-height: 220px;
+  }
+  
+  .agent-status-item {
+    padding: 10px 6px;
   }
   
   .agent-status-item__type {
@@ -937,26 +1034,63 @@ function updateSourceChart(agents: any[]) {
     display: none;
   }
   
+  .agent-status-item__name {
+    font-size: 13px;
+  }
+  
   .timeline-content__agent {
     font-size: 13px;
+  }
+  
+  .timeline-content__error {
+    font-size: 11px;
   }
   
   .lead-item__company {
     display: none;
   }
+  
+  .lead-item__avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+  
+  .lead-item__name {
+    font-size: 13px;
+  }
+  
+  .success-legend {
+    gap: 16px;
+  }
+  
+  .success-legend__item {
+    font-size: 11px;
+  }
+  
+  .card-header__actions {
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+  }
 }
 
 @media (max-width: 480px) {
+  .stats-row {
+    gap: 8px;
+  }
+  
   .stat-card {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
-    padding: 14px;
+    padding: 12px;
+    border-radius: var(--radius-sm);
   }
   
   .stat-card__icon {
-    width: 36px;
-    height: 36px;
+    width: 34px;
+    height: 34px;
   }
   
   .stat-card__value {
@@ -965,15 +1099,47 @@ function updateSourceChart(agents: any[]) {
   
   .stat-card__trend {
     position: static;
-    margin-top: 4px;
+    margin-top: 2px;
+    font-size: 10px;
   }
   
   .chart-container--trend {
     height: 180px;
   }
   
+  .chart-container--success {
+    height: 140px;
+  }
+  
+  .chart-container--source {
+    height: 160px;
+  }
+  
+  .dashboard-card :deep(.el-card__header) {
+    padding: 12px 14px;
+  }
+  
+  .dashboard-card :deep(.el-card__body) {
+    padding: 12px;
+  }
+  
   .card-header__left span {
     font-size: 14px;
+  }
+  
+  .agent-status-list {
+    max-height: 180px;
+  }
+  
+  .agent-status-item__pulse {
+    width: 6px;
+    height: 6px;
+  }
+  
+  .timeline-content__header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
   }
 }
 </style>

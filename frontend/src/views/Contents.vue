@@ -37,6 +37,14 @@
             <span>内容中心</span>
           </div>
           <div class="card-header__right">
+            <el-button-group>
+              <el-button :type="viewMode === 'table' ? 'primary' : 'default'" @click="viewMode = 'table'">
+                <el-icon><Grid /></el-icon>表格
+              </el-button>
+              <el-button :type="viewMode === 'calendar' ? 'primary' : 'default'" @click="viewMode = 'calendar'">
+                <el-icon><Calendar /></el-icon>日历
+              </el-button>
+            </el-button-group>
             <el-select v-model="filterType" placeholder="类型" style="width: 110px" @change="fetchContents">
               <el-option label="全部" value="" />
               <el-option label="文章" value="article" />
@@ -58,7 +66,8 @@
         </div>
       </template>
 
-      <el-table :data="contents" style="width: 100%">
+      <!-- Table View -->
+      <el-table v-if="viewMode === 'table'" :data="contents" style="width: 100%">
         <el-table-column prop="type" label="类型" width="100">
           <template #default="{ row }">
             <el-tag :type="typeColorMap[row.type]" size="small" round>{{ typeLabelMap[row.type] || row.type }}</el-tag>
@@ -89,7 +98,7 @@
         </el-table-column>
         <el-table-column prop="status" label="状态" width="90">
           <template #default="{ row }">
-            <el-tag :type="statusColorMap[row.status]" size="small" round>{{ statusLabelMap[row.status] || row.status }}</el-tag>
+            <el-tag :type="statusColorMap[row.status]}" size="small" round>{{ statusLabelMap[row.status] || row.status }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="created_at" label="创建时间" width="150">
@@ -105,7 +114,39 @@
         </el-table-column>
       </el-table>
 
-      <el-empty v-if="!contents.length" description="暂无内容" :image-size="80" />
+      <!-- Calendar View -->
+      <div v-else class="calendar-view">
+        <div class="calendar-header">
+          <el-button text @click="prevMonth"><el-icon><ArrowLeft /></el-icon></el-button>
+          <h3>{{ calendarYear }}年 {{ calendarMonth }}月</h3>
+          <el-button text @click="nextMonth"><el-icon><ArrowRight /></el-icon></el-button>
+          <el-button text @click="goToday" size="small">今天</el-button>
+        </div>
+        <div class="calendar-grid">
+          <div class="calendar-weekday" v-for="day in weekDays" :key="day">{{ day }}</div>
+          <div
+            v-for="day in calendarDays"
+            :key="day.date"
+            class="calendar-day"
+            :class="{ 'calendar-day--today': day.isToday, 'calendar-day--other-month': !day.isCurrentMonth }"
+          >
+            <div class="calendar-day__date">{{ day.dateNum }}</div>
+            <div class="calendar-day__events">
+              <div
+                v-for="event in day.events"
+                :key="event.id"
+                class="calendar-event"
+                :class="`calendar-event--${event.status}`"
+                @click="viewContent(event)"
+              >
+                {{ event.title }}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <el-empty v-if="!contents.length && viewMode === 'table'" description="暂无内容" :image-size="80" />
     </el-card>
 
     <!-- Content Preview Dialog -->
@@ -197,14 +238,15 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, onMounted, reactive, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Document, Plus, View, Star, ChatDotRound, Share, MagicStick } from '@element-plus/icons-vue'
+import { Document, Plus, View, Star, ChatDotRound, Share, MagicStick, Grid, Calendar, ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import api from '../api'
 
 const contents = ref<any[]>([])
 const filterType = ref('')
 const filterStatus = ref('')
+const viewMode = ref<'table' | 'calendar'>('table')
 const previewDialog = ref(false)
 const createDialog = ref(false)
 const publishDialogVisible = ref(false)
@@ -215,6 +257,10 @@ const editingId = ref('')
 const publishPlatforms = ref<string[]>([])
 const schedulePublish = ref(false)
 const publishTime = ref<Date | null>(null)
+
+// Calendar state
+const calendarDate = ref(new Date())
+const weekDays = ['日', '一', '二', '三', '四', '五', '六']
 
 const createForm = reactive({ title: '', type: 'article', body: '', platforms: [] as string[] })
 
@@ -377,6 +423,72 @@ async function deleteContent(content: any) {
     await fetchStats()
   } catch { /* cancelled */ }
 }
+
+// Calendar functions
+const calendarYear = computed(() => calendarDate.value.getFullYear())
+const calendarMonth = computed(() => calendarDate.value.getMonth() + 1)
+
+const calendarDays = computed(() => {
+  const year = calendarDate.value.getFullYear()
+  const month = calendarDate.value.getMonth()
+  const today = new Date()
+  const firstDay = new Date(year, month, 1)
+  const lastDay = new Date(year, month + 1, 0)
+  const days: any[] = []
+
+  // Previous month days
+  const prevMonthDays = firstDay.getDay()
+  const prevMonthLast = new Date(year, month, 0)
+  for (let i = prevMonthDays - 1; i >= 0; i--) {
+    days.push({
+      date: `${year}-${String(month).padStart(2, '0')}-${String(prevMonthLast.getDate() - i).padStart(2, '0')}`,
+      dateNum: prevMonthLast.getDate() - i,
+      isCurrentMonth: false,
+      isToday: false,
+      events: [],
+    })
+  }
+
+  // Current month days
+  for (let d = 1; d <= lastDay.getDate(); d++) {
+    const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`
+    const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === d
+    const dayEvents = contents.value.filter(c => c.created_at?.startsWith(dateStr))
+    days.push({
+      date: dateStr,
+      dateNum: d,
+      isCurrentMonth: true,
+      isToday,
+      events: dayEvents.slice(0, 3),
+    })
+  }
+
+  // Next month days
+  const remaining = 42 - days.length
+  for (let i = 1; i <= remaining; i++) {
+    days.push({
+      date: `${year}-${String(month + 2).padStart(2, '0')}-${String(i).padStart(2, '0')}`,
+      dateNum: i,
+      isCurrentMonth: false,
+      isToday: false,
+      events: [],
+    })
+  }
+
+  return days
+})
+
+function prevMonth() {
+  calendarDate.value = new Date(calendarDate.value.getFullYear(), calendarDate.value.getMonth() - 1, 1)
+}
+
+function nextMonth() {
+  calendarDate.value = new Date(calendarDate.value.getFullYear(), calendarDate.value.getMonth() + 1, 1)
+}
+
+function goToday() {
+  calendarDate.value = new Date()
+}
 </script>
 
 <style scoped>
@@ -474,6 +586,115 @@ async function deleteContent(content: any) {
   margin-right: 2px;
 }
 
+/* Calendar View */
+.calendar-view {
+  padding: 16px 0;
+}
+
+.calendar-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.calendar-header h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #303133;
+  flex: 1;
+  text-align: center;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 1px;
+  background: #f0f0f0;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.calendar-weekday {
+  background: #f5f7fa;
+  padding: 10px;
+  text-align: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: #909399;
+}
+
+.calendar-day {
+  background: #fff;
+  min-height: 100px;
+  padding: 8px;
+  transition: background 0.2s;
+}
+
+.calendar-day:hover {
+  background: #fafafa;
+}
+
+.calendar-day--today {
+  background: #ecf5ff;
+}
+
+.calendar-day--other-month {
+  background: #fafafa;
+  opacity: 0.6;
+}
+
+.calendar-day__date {
+  font-size: 13px;
+  font-weight: 600;
+  color: #606266;
+  margin-bottom: 6px;
+}
+
+.calendar-day--today .calendar-day__date {
+  color: #409eff;
+}
+
+.calendar-day__events {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.calendar-event {
+  font-size: 11px;
+  padding: 3px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: transform 0.15s;
+}
+
+.calendar-event:hover {
+  transform: scale(1.02);
+}
+
+.calendar-event--draft {
+  background: #fdf6ec;
+  color: #e6a23c;
+  border-left: 2px solid #e6a23c;
+}
+
+.calendar-event--pending {
+  background: #f4f4f5;
+  color: #909399;
+  border-left: 2px solid #909399;
+}
+
+.calendar-event--published {
+  background: #f0f9eb;
+  color: #67c23a;
+  border-left: 2px solid #67c23a;
+}
+
 /* Preview Dialog */
 .preview-header h2 {
   margin: 0 0 12px;
@@ -514,27 +735,181 @@ async function deleteContent(content: any) {
 }
 
 @media (max-width: 768px) {
+  .stats-row {
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  
+  .stat-card {
+    padding: 12px;
+    border-radius: var(--radius-sm);
+    margin-bottom: 0;
+  }
+  
+  .stat-card__value {
+    font-size: 20px;
+  }
+  
+  .stat-card__label {
+    font-size: 11px;
+  }
+  
   .card-header {
     flex-direction: column;
     align-items: flex-start;
+    gap: 10px;
   }
   
   .card-header__right {
     width: 100%;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  
+  .card-header__right .el-button-group {
+    width: 100%;
+  }
+  
+  .card-header__right .el-button-group .el-button {
+    flex: 1;
   }
   
   .card-header__right .el-select {
     flex: 1;
+    min-width: 0;
+  }
+  
+  .title-cell__text {
+    font-size: 13px;
+  }
+  
+  .platform-tag {
+    font-size: 9px;
+    padding: 0 4px;
+    height: 16px;
+    line-height: 14px;
+  }
+  
+  .metrics-cell {
+    font-size: 11px;
+    gap: 8px;
+  }
+  
+  /* Calendar View */
+  .calendar-view {
+    padding: 12px 0;
+  }
+  
+  .calendar-header h3 {
+    font-size: 14px;
+  }
+  
+  .calendar-header .el-button {
+    padding: 6px 8px;
+  }
+  
+  .calendar-weekday {
+    padding: 8px 4px;
+    font-size: 11px;
+  }
+  
+  .calendar-day {
+    min-height: 70px;
+    padding: 6px;
+  }
+  
+  .calendar-day__date {
+    font-size: 11px;
+    margin-bottom: 4px;
+  }
+  
+  .calendar-event {
+    font-size: 10px;
+    padding: 2px 4px;
+  }
+  
+  .preview-header h2 {
+    font-size: 18px;
+    margin-bottom: 10px;
+  }
+  
+  .preview-meta {
+    gap: 6px;
+    margin-bottom: 16px;
+  }
+  
+  .preview-meta__time {
+    font-size: 12px;
+  }
+  
+  .preview-content {
+    font-size: 14px;
+    line-height: 1.7;
   }
   
   .preview-stats {
     flex-wrap: wrap;
-    gap: 12px;
+    gap: 10px;
+    padding: 12px 0;
   }
   
   .preview-stat {
     flex: 1;
-    min-width: 120px;
+    min-width: 100px;
+    font-size: 13px;
+  }
+  
+  .el-dialog {
+    width: 90% !important;
+  }
+  
+  .el-dialog__body {
+    padding: 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .stat-card {
+    padding: 10px;
+  }
+  
+  .stat-card__value {
+    font-size: 18px;
+  }
+  
+  .stat-card__label {
+    font-size: 10px;
+  }
+  
+  .card-header__right {
+    flex-direction: column;
+  }
+  
+  .card-header__right .el-select {
+    width: 100% !important;
+  }
+  
+  .calendar-day {
+    min-height: 60px;
+    padding: 4px;
+  }
+  
+  .calendar-day__date {
+    font-size: 10px;
+  }
+  
+  .calendar-event {
+    font-size: 9px;
+    padding: 1px 3px;
+  }
+  
+  .preview-header h2 {
+    font-size: 16px;
+  }
+  
+  .preview-stat {
+    min-width: 80px;
+    font-size: 12px;
   }
 }
 </style>
