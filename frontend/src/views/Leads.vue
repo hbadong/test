@@ -1,67 +1,101 @@
 <template>
   <div class="leads-page">
+    <!-- Stats Overview -->
     <el-row :gutter="16" class="stats-row">
       <el-col :xs="12" :sm="6">
         <div class="stat-mini stat-mini--blue">
-          <div class="stat-mini__value">{{ summary.bySource?.reduce((s: number, i: any) => s + i.count, 0) || 0 }}</div>
+          <div class="stat-mini__value">{{ leads.length }}</div>
           <div class="stat-mini__label">总线索</div>
         </div>
       </el-col>
       <el-col :xs="12" :sm="6">
         <div class="stat-mini stat-mini--red">
-          <div class="stat-mini__value">{{ getIntentCount('high') }}</div>
+          <div class="stat-mini__value">{{ leads.filter(l => l.intent_level === 'high').length }}</div>
           <div class="stat-mini__label">高意向</div>
         </div>
       </el-col>
       <el-col :xs="12" :sm="6">
-        <div class="stat-mini stat-mini--orange">
-          <div class="stat-mini__value">{{ getIntentCount('medium') }}</div>
-          <div class="stat-mini__label">中意向</div>
+        <div class="stat-mini stat-mini--green">
+          <div class="stat-mini__value">{{ leads.filter(l => l.status === 'converted').length }}</div>
+          <div class="stat-mini__label">已成交</div>
         </div>
       </el-col>
       <el-col :xs="12" :sm="6">
-        <div class="stat-mini stat-mini--gray">
-          <div class="stat-mini__value">{{ getIntentCount('low') }}</div>
-          <div class="stat-mini__label">低意向</div>
+        <div class="stat-mini stat-mini--orange">
+          <div class="stat-mini__value">{{ conversionRate }}%</div>
+          <div class="stat-mini__label">转化率</div>
         </div>
       </el-col>
     </el-row>
 
-    <el-card>
-      <template #header>
-        <div class="card-header">
-          <div class="card-header__left">
-            <el-icon :size="18" color="#409eff"><UserFilled /></el-icon>
-            <span>线索列表</span>
-          </div>
-          <div class="card-header__right">
-            <el-select v-model="filterSource" placeholder="来源" style="width: 120px" @change="fetchLeads">
-              <el-option label="全部" value="" />
-              <el-option label="AI拓客" value="prospect" />
-              <el-option label="地图拓客" value="map-prospect" />
-              <el-option label="AI电销" value="call" />
-              <el-option label="AI直播" value="live" />
-            </el-select>
-            <el-button type="primary" @click="importDialog = true">
-              <el-icon><UploadFilled /></el-icon>导入线索
+    <!-- View Toggle & Filters -->
+    <el-card class="filter-card">
+      <div class="filter-bar">
+        <div class="filter-bar__left">
+          <el-button-group>
+            <el-button :type="viewMode === 'table' ? 'primary' : 'default'" @click="viewMode = 'table'">
+              <el-icon><Grid /></el-icon>表格
             </el-button>
-          </div>
+            <el-button :type="viewMode === 'kanban' ? 'primary' : 'default'" @click="viewMode = 'kanban'">
+              <el-icon><Menu /></el-icon>看板
+            </el-button>
+          </el-button-group>
         </div>
-      </template>
+        <div class="filter-bar__right">
+          <el-select v-model="filterSource" placeholder="来源" style="width: 120px" @change="fetchLeads">
+            <el-option label="全部" value="" />
+            <el-option label="AI拓客" value="prospect" />
+            <el-option label="地图拓客" value="map-prospect" />
+            <el-option label="AI电销" value="call" />
+            <el-option label="个企微" value="wechat" />
+          </el-select>
+          <el-select v-model="filterIntent" placeholder="意向" style="width: 100px" @change="fetchLeads">
+            <el-option label="全部" value="" />
+            <el-option label="高" value="high" />
+            <el-option label="中" value="medium" />
+            <el-option label="低" value="low" />
+          </el-select>
+          <el-button type="primary" @click="importDialog = true">
+            <el-icon><UploadFilled /></el-icon>导入
+          </el-button>
+        </div>
+      </div>
+    </el-card>
 
-      <el-table :data="leads" style="width: 100%" class="leads-table">
-        <el-table-column prop="name" label="名称" min-width="120">
+    <!-- Batch Operations Bar -->
+    <div v-if="selectedLeads.length > 0" class="batch-bar">
+      <span class="batch-bar__count">已选 {{ selectedLeads.length }} 条</span>
+      <el-button size="small" type="success" @click="batchUpdateStatus('contacted')">
+        <el-icon><Phone /></el-icon>标记已联系
+      </el-button>
+      <el-button size="small" type="warning" @click="batchUpdateStatus('qualified')">
+        <el-icon><Star /></el-icon>标记高意向
+      </el-button>
+      <el-button size="small" type="danger" @click="batchDelete">
+        <el-icon><Delete /></el-icon>批量删除
+      </el-button>
+      <el-button size="small" link @click="selectedLeads = []">取消选择</el-button>
+    </div>
+
+    <!-- Table View -->
+    <el-card v-if="viewMode === 'table'">
+      <el-table :data="filteredLeads" style="width: 100%" @selection-change="onSelectionChange" class="leads-table">
+        <el-table-column type="selection" width="40" />
+        <el-table-column prop="name" label="名称" min-width="140">
           <template #default="{ row }">
-            <div class="lead-name">
+            <div class="lead-name" @click="viewLead(row)">
               <div class="lead-avatar" :style="{ background: getAvatarColor(row.name) }">
                 {{ row.name?.charAt(0) || '?' }}
               </div>
-              <span>{{ row.name || '未命名' }}</span>
+              <div>
+                <span class="lead-name__text">{{ row.name || '未命名' }}</span>
+                <div class="lead-name__company">{{ row.company || '-' }}</div>
+              </div>
             </div>
           </template>
         </el-table-column>
-        <el-table-column prop="company" label="公司" min-width="140" />
         <el-table-column prop="phone" label="电话" width="140" />
+        <el-table-column prop="email" label="邮箱" width="180" />
         <el-table-column prop="source" label="来源" width="110">
           <template #default="{ row }">
             <el-tag size="small" effect="plain">{{ sourceMap[row.source] || row.source }}</el-tag>
@@ -69,38 +103,103 @@
         </el-table-column>
         <el-table-column prop="intent_level" label="意向" width="80">
           <template #default="{ row }">
-            <el-tag 
-              :type="row.intent_level === 'high' ? 'danger' : row.intent_level === 'medium' ? 'warning' : 'info'" 
-              size="small" 
-              effect="light"
-              round
-            >
-              {{ row.intent_level === 'high' ? '高' : row.intent_level === 'medium' ? '中' : '低' }}
-            </el-tag>
+            <el-tag :type="intentColorMap[row.intent_level]" size="small" round>{{ intentLabelMap[row.intent_level] }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="status" label="状态" width="90">
+        <el-table-column prop="score" label="评分" width="80">
           <template #default="{ row }">
-            <el-tag size="small" round>{{ statusMap[row.status] || row.status }}</el-tag>
+            <div class="score-cell">
+              <div class="score-bar" :style="{ width: `${calculateScore(row)}%`, background: getScoreColor(calculateScore(row)) }"></div>
+              <span>{{ calculateScore(row) }}</span>
+            </div>
           </template>
         </el-table-column>
-        <el-table-column prop="created_at" label="创建时间" width="170" />
+        <el-table-column prop="status" label="状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="statusColorMap[row.status]" size="small" round>{{ statusLabelMap[row.status] }}</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="created_at" label="创建时间" width="150">
+          <template #default="{ row }">{{ formatTime(row.created_at) }}</template>
+        </el-table-column>
         <el-table-column label="操作" width="140" fixed="right">
           <template #default="{ row }">
             <el-button size="small" link type="primary" @click="viewLead(row)">详情</el-button>
-            <el-button size="small" link type="success" @click="updateStatus(row)">跟进</el-button>
+            <el-button size="small" link type="success" @click="nextStatus(row)">推进</el-button>
           </template>
         </el-table-column>
       </el-table>
     </el-card>
 
+    <!-- Kanban View -->
+    <div v-else class="kanban-view">
+      <div v-for="stage in kanbanStages" :key="stage.value" class="kanban-column">
+        <div class="kanban-column__header" :style="{ borderColor: stage.color }">
+          <span class="kanban-column__title">{{ stage.label }}</span>
+          <span class="kanban-column__count">{{ getLeadsByStatus(stage.value).length }}</span>
+        </div>
+        <div class="kanban-column__body">
+          <div v-for="lead in getLeadsByStatus(stage.value)" :key="lead.id" class="kanban-card" @click="viewLead(lead)">
+            <div class="kanban-card__header">
+              <div class="kanban-card__avatar" :style="{ background: getAvatarColor(lead.name) }">
+                {{ lead.name?.charAt(0) || '?' }}
+              </div>
+              <div class="kanban-card__info">
+                <div class="kanban-card__name">{{ lead.name || '未命名' }}</div>
+                <div class="kanban-card__company">{{ lead.company || '-' }}</div>
+              </div>
+            </div>
+            <div class="kanban-card__meta">
+              <el-tag :type="intentColorMap[lead.intent_level]" size="small" round>{{ intentLabelMap[lead.intent_level] }}</el-tag>
+              <span class="kanban-card__score">{{ calculateScore(lead) }}分</span>
+            </div>
+            <div class="kanban-card__contact">
+              <span><el-icon><Phone /></el-icon>{{ lead.phone || '-' }}</span>
+            </div>
+            <div class="kanban-card__footer">
+              <span class="kanban-card__source">{{ sourceMap[lead.source] }}</span>
+              <el-button size="small" link type="primary" @click.stop="nextStatus(lead)">推进</el-button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lead Detail Drawer -->
+    <el-drawer v-model="detailDrawer" title="线索详情" size="480px">
+      <div v-if="currentLead" class="lead-detail">
+        <div class="lead-detail__header">
+          <div class="lead-detail__avatar" :style="{ background: getAvatarColor(currentLead.name) }">
+            {{ currentLead.name?.charAt(0) || '?' }}
+          </div>
+          <div class="lead-detail__info">
+            <h3>{{ currentLead.name || '未命名' }}</h3>
+            <p>{{ currentLead.company || '-' }}</p>
+          </div>
+        </div>
+        <el-descriptions :column="1" border>
+          <el-descriptions-item label="电话">{{ currentLead.phone || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="邮箱">{{ currentLead.email || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="来源">{{ sourceMap[currentLead.source] || currentLead.source }}</el-descriptions-item>
+          <el-descriptions-item label="意向等级">
+            <el-tag :type="intentColorMap[currentLead.intent_level]" size="small">{{ intentLabelMap[currentLead.intent_level] }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="状态">
+            <el-tag :type="statusColorMap[currentLead.status]" size="small">{{ statusLabelMap[currentLead.status] }}</el-tag>
+          </el-descriptions-item>
+          <el-descriptions-item label="评分">{{ calculateScore(currentLead) }}分</el-descriptions-item>
+          <el-descriptions-item label="备注">{{ currentLead.notes || '暂无' }}</el-descriptions-item>
+          <el-descriptions-item label="创建时间">{{ formatTime(currentLead.created_at) }}</el-descriptions-item>
+        </el-descriptions>
+        <div class="lead-detail__actions">
+          <el-button type="primary" @click="nextStatus(currentLead)" style="width: 100%">推进到下一阶段</el-button>
+        </div>
+      </div>
+    </el-drawer>
+
+    <!-- Import Dialog -->
     <el-dialog v-model="importDialog" title="导入线索" width="500px">
-      <el-upload
-        drag
-        action="/api/leads/import"
-        :on-success="() => { ElMessage.success('导入成功'); importDialog = false; fetchLeads() }"
-        :show-file-list="false"
-      >
+      <el-upload drag action="/api/leads/import" :on-success="() => { ElMessage.success('导入成功'); importDialog = false; fetchLeads() }" :show-file-list="false">
         <el-icon size="48" color="#409eff"><UploadFilled /></el-icon>
         <p>拖拽文件到这里，或 <em>点击上传</em></p>
         <p style="color: #909399; font-size: 12px">支持JSON/CSV格式</p>
@@ -110,36 +209,47 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { UploadFilled, UserFilled } from '@element-plus/icons-vue'
+import { ref, computed, onMounted } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { UploadFilled, UserFilled, Grid, Menu, Phone, Star, Delete } from '@element-plus/icons-vue'
 import api from '../api'
 
 const leads = ref<any[]>([])
-const summary = ref<any>({})
 const filterSource = ref('')
+const filterIntent = ref('')
+const viewMode = ref<'table' | 'kanban'>('table')
 const importDialog = ref(false)
+const detailDrawer = ref(false)
+const currentLead = ref<any>(null)
+const selectedLeads = ref<any[]>([])
 
-const sourceMap: Record<string, string> = {
-  'prospect': 'AI拓客',
-  'map-prospect': '地图拓客',
-  'call': 'AI电销',
-  'live': 'AI直播',
-  'wechat': '个企微',
-}
+const sourceMap: Record<string, string> = { prospect: 'AI拓客', 'map-prospect': '地图拓客', call: 'AI电销', live: 'AI直播', wechat: '个企微', import: '导入' }
+const statusLabelMap: Record<string, string> = { new: '新线索', contacted: '已联系', qualified: '高意向', converted: '已成交', lost: '已流失' }
+const statusColorMap: Record<string, any> = { new: '', contacted: 'warning', qualified: 'success', converted: 'info', lost: 'danger' }
+const intentLabelMap: Record<string, string> = { high: '高', medium: '中', low: '低', unknown: '未知' }
+const intentColorMap: Record<string, any> = { high: 'danger', medium: 'warning', low: 'info', unknown: 'info' }
 
-const statusMap: Record<string, string> = {
-  'new': '新线索',
-  'contacted': '已联系',
-  'qualified': '高意向',
-  'converted': '已成交',
-  'lost': '已流失',
-}
+const kanbanStages = [
+  { value: 'new', label: '新线索', color: '#409eff' },
+  { value: 'contacted', label: '已联系', color: '#e6a23c' },
+  { value: 'qualified', label: '高意向', color: '#67c23a' },
+  { value: 'converted', label: '已成交', color: '#722ed1' },
+  { value: 'lost', label: '已流失', color: '#f56c6c' },
+]
 
-onMounted(async () => {
-  await fetchLeads()
-  await fetchSummary()
+const filteredLeads = computed(() => {
+  let result = leads.value
+  if (filterSource.value) result = result.filter(l => l.source === filterSource.value)
+  if (filterIntent.value) result = result.filter(l => l.intent_level === filterIntent.value)
+  return result
 })
+
+const conversionRate = computed(() => {
+  const converted = leads.value.filter(l => l.status === 'converted').length
+  return leads.value.length > 0 ? Math.round((converted / leads.value.length) * 100) : 0
+})
+
+onMounted(fetchLeads)
 
 async function fetchLeads() {
   try {
@@ -149,12 +259,27 @@ async function fetchLeads() {
   } catch (e) { console.error(e) }
 }
 
-async function fetchSummary() {
-  try { summary.value = await api.get('/dashboard/leads/summary') } catch (e) { console.error(e) }
+function getLeadsByStatus(status: string) {
+  return filteredLeads.value.filter(l => l.status === status)
 }
 
-function getIntentCount(level: string): number {
-  return summary.value?.byIntent?.find((i: any) => i.intent_level === level)?.count || 0
+function calculateScore(lead: any): number {
+  let score = 30
+  if (lead.intent_level === 'high') score += 30
+  else if (lead.intent_level === 'medium') score += 15
+  if (lead.status === 'qualified') score += 15
+  else if (lead.status === 'converted') score += 25
+  else if (lead.status === 'contacted') score += 5
+  if (lead.company) score += 5
+  if (lead.phone) score += 5
+  return Math.min(100, score)
+}
+
+function getScoreColor(score: number): string {
+  if (score >= 80) return '#67c23a'
+  if (score >= 60) return '#e6a23c'
+  if (score >= 40) return '#409eff'
+  return '#909399'
 }
 
 function getAvatarColor(name: string): string {
@@ -170,19 +295,56 @@ function getAvatarColor(name: string): string {
   return colors[hash % colors.length]
 }
 
-function viewLead(lead: any) {
-  ElMessage.info(`查看线索: ${lead.name} - ${lead.company}`)
+function formatTime(dateStr: string): string {
+  if (!dateStr) return ''
+  return new Date(dateStr).toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
 }
 
-async function updateStatus(lead: any) {
-  const statuses = ['new', 'contacted', 'qualified', 'converted', 'lost']
+function onSelectionChange(selection: any[]) {
+  selectedLeads.value = selection
+}
+
+function viewLead(lead: any) {
+  currentLead.value = lead
+  detailDrawer.value = true
+}
+
+async function nextStatus(lead: any) {
+  const statuses = ['new', 'contacted', 'qualified', 'converted']
   const idx = statuses.indexOf(lead.status)
-  const nextStatus = statuses[(idx + 1) % statuses.length]
+  if (idx >= statuses.length - 1) {
+    ElMessage.info('该线索已在最终阶段')
+    return
+  }
+  const nextStatus = statuses[idx + 1]
   try {
     await api.patch(`/leads/${lead.id}`, { status: nextStatus })
-    ElMessage.success(`状态已更新为: ${statusMap[nextStatus]}`)
+    ElMessage.success(`已推进至: ${statusLabelMap[nextStatus]}`)
     await fetchLeads()
   } catch (e) { ElMessage.error('更新失败') }
+}
+
+async function batchUpdateStatus(status: string) {
+  try {
+    for (const lead of selectedLeads.value) {
+      await api.patch(`/leads/${lead.id}`, { status })
+    }
+    ElMessage.success(`已将 ${selectedLeads.value.length} 条线索标记为 ${statusLabelMap[status]}`)
+    selectedLeads.value = []
+    await fetchLeads()
+  } catch (e) { ElMessage.error('批量更新失败') }
+}
+
+async function batchDelete() {
+  try {
+    await ElMessageBox.confirm(`确定删除 ${selectedLeads.value.length} 条线索？`, '确认')
+    for (const lead of selectedLeads.value) {
+      await api.delete(`/leads/${lead.id}`)
+    }
+    ElMessage.success('批量删除成功')
+    selectedLeads.value = []
+    await fetchLeads()
+  } catch { /* cancelled */ }
 }
 </script>
 
@@ -196,9 +358,7 @@ async function updateStatus(lead: any) {
   to { opacity: 1; transform: translateY(0); }
 }
 
-.stats-row {
-  margin-bottom: 20px;
-}
+.stats-row { margin-bottom: 16px; }
 
 .stat-mini {
   background: #fff;
@@ -209,28 +369,18 @@ async function updateStatus(lead: any) {
   transition: all 0.25s ease;
 }
 
-.stat-mini:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-}
-
-.stat-mini__value {
-  font-size: 28px;
-  font-weight: 700;
-}
-
-.stat-mini__label {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 4px;
-}
-
+.stat-mini:hover { transform: translateY(-2px); box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08); }
+.stat-mini__value { font-size: 28px; font-weight: 700; }
+.stat-mini__label { font-size: 12px; color: #909399; margin-top: 4px; }
 .stat-mini--blue .stat-mini__value { color: #409eff; }
 .stat-mini--red .stat-mini__value { color: #f56c6c; }
+.stat-mini--green .stat-mini__value { color: #67c23a; }
 .stat-mini--orange .stat-mini__value { color: #e6a23c; }
-.stat-mini--gray .stat-mini__value { color: #909399; }
 
-.card-header {
+.filter-card { margin-bottom: 16px; }
+.filter-card :deep(.el-card__body) { padding: 12px 16px; }
+
+.filter-bar {
   display: flex;
   justify-content: space-between;
   align-items: center;
@@ -238,52 +388,134 @@ async function updateStatus(lead: any) {
   gap: 12px;
 }
 
-.card-header__left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  font-size: 15px;
-}
-
-.card-header__right {
+.filter-bar__right {
   display: flex;
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
 }
 
+.batch-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: #ecf5ff;
+  border-radius: 8px;
+  margin-bottom: 16px;
+}
+
+.batch-bar__count {
+  font-weight: 600;
+  color: #409eff;
+}
+
 .lead-name {
   display: flex;
   align-items: center;
   gap: 10px;
+  cursor: pointer;
 }
 
+.lead-name__text { font-weight: 500; }
+.lead-name__company { font-size: 12px; color: #909399; }
+
 .lead-avatar {
-  width: 32px;
-  height: 32px;
+  width: 32px; height: 32px;
   border-radius: 8px;
   color: #fff;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 13px;
-  font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600;
   flex-shrink: 0;
 }
 
+.score-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.score-bar {
+  height: 6px;
+  border-radius: 3px;
+  min-width: 20px;
+  transition: width 0.3s;
+}
+
+/* Kanban */
+.kanban-view {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  padding-bottom: 16px;
+}
+
+.kanban-column {
+  min-width: 280px;
+  flex: 1;
+  background: #f5f7fa;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.kanban-column__header {
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 3px solid;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kanban-column__title { font-weight: 600; font-size: 14px; }
+.kanban-column__count { font-size: 12px; color: #909399; background: #f0f0f0; padding: 2px 8px; border-radius: 10px; }
+
+.kanban-column__body {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 200px;
+}
+
+.kanban-card {
+  background: #fff;
+  border-radius: 10px;
+  padding: 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.kanban-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); transform: translateY(-1px); }
+
+.kanban-card__header { display: flex; gap: 10px; margin-bottom: 10px; }
+.kanban-card__avatar { width: 36px; height: 36px; border-radius: 8px; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 600; flex-shrink: 0; }
+.kanban-card__name { font-weight: 500; font-size: 14px; }
+.kanban-card__company { font-size: 12px; color: #909399; }
+
+.kanban-card__meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+.kanban-card__score { font-size: 12px; color: #606266; font-weight: 500; }
+
+.kanban-card__contact { font-size: 12px; color: #606266; margin-bottom: 8px; }
+.kanban-card__contact .el-icon { margin-right: 4px; }
+
+.kanban-card__footer { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: #909399; border-top: 1px solid #f0f0f0; padding-top: 8px; }
+
+/* Lead Detail */
+.lead-detail__header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid #f0f0f0; }
+.lead-detail__avatar { width: 56px; height: 56px; border-radius: 12px; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 22px; font-weight: 700; }
+.lead-detail__info h3 { margin: 0 0 4px; font-size: 18px; }
+.lead-detail__info p { margin: 0; color: #909399; }
+.lead-detail__actions { margin-top: 20px; }
+
 @media (max-width: 768px) {
-  .card-header {
-    flex-direction: column;
-    align-items: flex-start;
-  }
+  .filter-bar { flex-direction: column; align-items: flex-start; }
+  .filter-bar__right { width: 100%; }
+  .filter-bar__right .el-select { flex: 1; }
   
-  .card-header__right {
-    width: 100%;
-  }
-  
-  .card-header__right .el-select {
-    flex: 1;
-  }
+  .kanban-view { flex-direction: column; }
+  .kanban-column { min-width: 100%; }
 }
 </style>

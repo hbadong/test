@@ -257,6 +257,7 @@ const stats = ref<Record<string, number>>({})
 const agentStatusList = ref<any[]>([])
 const recentTasks = ref<any[]>([])
 const recentLeads = ref<any[]>([])
+const loading = ref(false)
 const trendChartRef = ref<HTMLElement>()
 const successChartRef = ref<HTMLElement>()
 const sourceChartRef = ref<HTMLElement>()
@@ -334,6 +335,7 @@ function handleResize() {
 }
 
 async function fetchDashboard() {
+  loading.value = true
   try {
     const overview = await api.get('/dashboard/overview')
     const overviewData = overview.data as any
@@ -383,6 +385,8 @@ async function fetchDashboard() {
     updateSourceChart(agentsRes.data)
   } catch (e) {
     console.error('Failed to fetch dashboard data:', e)
+  } finally {
+    loading.value = false
   }
 }
 

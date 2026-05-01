@@ -17,6 +17,7 @@ import { llmService } from './services/LLMService';
 import { ttsService } from './services/TTSService';
 import { visionService } from './services/VisionService';
 import { db } from './config/database';
+import { seedAllData } from './seed/seedData';
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -106,6 +107,7 @@ app.listen(PORT, () => {
   }
 
   initAllAgents();
+  seedAllData();
   scheduler.start();
 });
 

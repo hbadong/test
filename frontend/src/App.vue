@@ -53,6 +53,39 @@
             <span class="status-text">系统运行中</span>
           </div>
           <el-divider direction="vertical" />
+          
+          <!-- Notification Bell -->
+          <el-popover trigger="click" placement="bottom-end" width="360px" :show-arrow="false">
+            <template #reference>
+              <div class="notification-bell" @click="fetchNotifications">
+                <el-badge :value="unreadCount" :hidden="unreadCount === 0" :max="99">
+                  <el-icon :size="20"><Bell /></el-icon>
+                </el-badge>
+              </div>
+            </template>
+            <div class="notification-panel">
+              <div class="notification-panel__header">
+                <h4>通知中心</h4>
+                <el-button text size="small" @click="markAllRead">全部已读</el-button>
+              </div>
+              <el-scrollbar height="320px">
+                <div v-if="notifications.length === 0" class="notification-empty">
+                  <el-empty description="暂无通知" :image-size="60" />
+                </div>
+                <div v-for="n in notifications" :key="n.id" class="notification-item" :class="{ 'notification-item--unread': !n.read }" @click="markRead(n)">
+                  <div class="notification-item__icon" :style="{ background: n.color || '#409eff' }">
+                    <el-icon :size="16" color="#fff"><component :is="n.icon || 'InfoFilled'" /></el-icon>
+                  </div>
+                  <div class="notification-item__content">
+                    <div class="notification-item__title">{{ n.title }}</div>
+                    <div class="notification-item__desc">{{ n.message }}</div>
+                    <div class="notification-item__time">{{ formatNotifTime(n.created_at) }}</div>
+                  </div>
+                </div>
+              </el-scrollbar>
+            </div>
+          </el-popover>
+          
           <el-dropdown trigger="click" @command="handleUserCommand">
             <div class="user-info">
               <el-avatar :size="32" class="user-avatar">
@@ -111,24 +144,61 @@
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { Monitor, DataBoard, Avatar, Connection, Document, UserFilled, Setting } from '@element-plus/icons-vue'
+import { Monitor, DataBoard, Avatar, Connection, Document, UserFilled, Setting, Bell, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { logout } from './api'
+import { logout, api } from './api'
 
 const route = useRoute()
 const router = useRouter()
 const activeMenu = computed(() => route.path)
 
 const userInfo = ref<any>(null)
+const notifications = ref<any[]>([])
+const unreadCount = ref(0)
 
 onMounted(() => {
   const userStr = localStorage.getItem('user')
   if (userStr) {
-    try {
-      userInfo.value = JSON.parse(userStr)
-    } catch { /* ignore */ }
+    try { userInfo.value = JSON.parse(userStr) } catch { /* ignore */ }
   }
+  fetchNotifications()
+  // Poll for new notifications every 30 seconds
+  setInterval(fetchNotifications, 30000)
 })
+
+async function fetchNotifications() {
+  try {
+    // Generate mock notifications
+    const mockNotifs = [
+      { id: 'n1', title: '任务完成', message: 'AI创作 已成功生成 3 篇文案', icon: 'Check', color: '#67c23a', read: false, created_at: new Date(Date.now() - 300000).toISOString() },
+      { id: 'n2', title: '新线索', message: '地图拓客 发现 5 条高意向线索', icon: 'UserFilled', color: '#409eff', read: false, created_at: new Date(Date.now() - 1800000).toISOString() },
+      { id: 'n3', title: '任务失败', message: 'AI电销 执行失败: API 超时', icon: 'WarningFilled', color: '#f56c6c', read: true, created_at: new Date(Date.now() - 3600000).toISOString() },
+      { id: 'n4', title: '内容发布', message: '3 篇内容已成功发布到抖音、小红书', icon: 'Document', color: '#e6a23c', read: true, created_at: new Date(Date.now() - 7200000).toISOString() },
+      { id: 'n5', title: '系统提醒', message: '数据库备份已完成', icon: 'Setting', color: '#909399', read: true, created_at: new Date(Date.now() - 86400000).toISOString() },
+    ]
+    notifications.value = mockNotifs
+    unreadCount.value = mockNotifs.filter(n => !n.read).length
+  } catch { /* skip */ }
+}
+
+function markRead(n: any) {
+  n.read = true
+  unreadCount.value = notifications.value.filter(notif => !notif.read).length
+}
+
+function markAllRead() {
+  notifications.value.forEach(n => n.read = true)
+  unreadCount.value = 0
+}
+
+function formatNotifTime(dateStr: string): string {
+  if (!dateStr) return ''
+  const diff = Date.now() - new Date(dateStr).getTime()
+  if (diff < 60000) return '刚刚'
+  if (diff < 3600000) return `${Math.floor(diff / 60000)}分钟前`
+  if (diff < 86400000) return `${Math.floor(diff / 3600000)}小时前`
+  return new Date(dateStr).toLocaleDateString('zh-CN')
+}
 
 function handleUserCommand(command: string) {
   if (command === 'logout') {
@@ -433,6 +503,101 @@ body {
 
 .user-info:hover {
   background: rgba(0, 0, 0, 0.04);
+}
+
+/* Notification Bell */
+.notification-bell {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  color: #606266;
+  transition: all var(--transition-fast);
+}
+
+.notification-bell:hover {
+  background: rgba(0, 0, 0, 0.04);
+  color: var(--primary-color);
+}
+
+/* Notification Panel */
+.notification-panel {
+  padding: 0;
+}
+
+.notification-panel__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.notification-panel__header h4 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.notification-empty {
+  padding: 40px 0;
+  text-align: center;
+}
+
+.notification-item {
+  display: flex;
+  gap: 12px;
+  padding: 12px 16px;
+  cursor: pointer;
+  transition: background 0.15s;
+  border-bottom: 1px solid #f8f8f8;
+}
+
+.notification-item:hover {
+  background: #f5f7fa;
+}
+
+.notification-item--unread {
+  background: #ecf5ff;
+}
+
+.notification-item__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.notification-item__content {
+  flex: 1;
+  min-width: 0;
+}
+
+.notification-item__title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #303133;
+  margin-bottom: 2px;
+}
+
+.notification-item__desc {
+  font-size: 12px;
+  color: #606266;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.notification-item__time {
+  font-size: 11px;
+  color: #909399;
+  margin-top: 4px;
 }
 
 .user-avatar {
